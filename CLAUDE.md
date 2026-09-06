@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Project Overview
 
 This solution is a demonstration application for **sending and receiving live video streams in C# over a network**.
@@ -10,6 +14,46 @@ The solution consists of two WinForms applications and two class libraries:
 * `ReceiverLib` — receiver/backend implementation
 
 The **WinForms projects are frontends only**. The majority of the application logic must live in the corresponding libraries.
+
+---
+
+# Current State (read this first)
+
+As of the initial commit the repo is **bare scaffolding** — nothing is wired together yet:
+
+* `SenderLib` and `ReceiverLib` contain only an empty `Class1.cs`. No real code exists.
+* There are **no project references** anywhere. The WinForms apps do not reference the libs, and the libs reference nothing.
+* No FFmpeg / video dependency has been added.
+* `WinFormsVideo.slnx` only lists `WinFormsSender`. `WinFormsReceiver`, `SenderLib`, and `ReceiverLib` are **not** in the solution file.
+* `WinFormsSender` still has the default `Form1` / `Form1.Designer.cs`; `WinFormsReceiver` has `MainForm`. Namespaces are `WinFormsSender` and `WinFormsReceiver`.
+
+When you add the first real library code you will need to tell the developer to add the `ProjectReference`s manually (that edits WinForms `.csproj` files, which you may not touch — see rules below). You *can* add the libs to `WinFormsVideo.slnx` yourself since that is not a WinForms project file.
+
+Target framework is `net10.0` for the libs and `net10.0-windows` for the WinForms apps. `Nullable` and `ImplicitUsings` are enabled everywhere.
+
+---
+
+# Build, Run & Test
+
+There is no test project yet. Common commands (run from repo root):
+
+```powershell
+# Build a single library (the usual inner loop for Claude)
+dotnet build Sender/SenderLib/SenderLib.csproj
+dotnet build Receiver/ReceiverLib/ReceiverLib.csproj
+
+# Build / run the apps
+dotnet build Sender/WinFormsSender/WinFormsSender.csproj
+dotnet run --project Sender/WinFormsSender/WinFormsSender.csproj
+dotnet run --project Receiver/WinFormsReceiver/WinFormsReceiver.csproj
+
+# Solution build (currently only builds WinFormsSender until the other projects are added to the .slnx)
+dotnet build WinFormsVideo.slnx
+```
+
+If/when a test project is added, prefer xUnit and run with `dotnet test`; a single test is `dotnet test --filter "FullyQualifiedName~SomeTest"`.
+
+---
 
 ## Critical Development Rule
 
