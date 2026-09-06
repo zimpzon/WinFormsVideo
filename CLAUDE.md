@@ -19,39 +19,50 @@ The **WinForms projects are frontends only**. The majority of the application lo
 
 # Current State (read this first)
 
-As of the initial commit the repo is **bare scaffolding** — nothing is wired together yet:
+The repo is **early scaffolding**. `SenderLib` has a full architecture skeleton (types, interfaces,
+event args, method stubs that `throw new NotImplementedException()`) — **no logic is implemented yet**.
+`ReceiverLib` is still an empty `Class1.cs`.
 
-* `SenderLib` and `ReceiverLib` contain only an empty `Class1.cs`. No real code exists.
-* There are **no project references** anywhere. The WinForms apps do not reference the libs, and the libs reference nothing.
-* No FFmpeg / video dependency has been added.
-* `WinFormsVideo.slnx` only lists `WinFormsSender`. `WinFormsReceiver`, `SenderLib`, and `ReceiverLib` are **not** in the solution file.
-* `WinFormsSender` still has the default `Form1` / `Form1.Designer.cs`; `WinFormsReceiver` has `MainForm`. Namespaces are `WinFormsSender` and `WinFormsReceiver`.
+* `SenderLib` skeleton, flat in `Sender/SenderLib/`, namespace `SenderLib`:
+  * `VideoSender` — public facade (Open/Start/Pause/Resume/Stop/Restart/Seek/Close + state/stats/error events).
+  * `PlaybackController` (internal) — the injectable pipeline core: `IVideoSource` + `IPlaybackClock` + `IVideoStreamServer`.
+  * Concrete stubs: `FFmpegVideoSource` (all FFmpeg/native code goes here, nowhere else), `PlaybackClock`, `TcpVideoStreamServer`, `ReceiverConnection`, `StreamProtocol`/`FrameHeader`.
+  * DTOs/enums: `SenderConfiguration`, `PlaybackState`, `VideoInfo`, `SenderStatistics`, `SenderError`/`SenderErrorKind`, `EncodedFrame`.
+* Transport is **TCP first** (`IVideoStreamServer` keeps it swappable for UDP later). Sender is **streaming-only** — it does not expose decoded pixels.
+* `SenderLib.csproj` sets `<NoWarn>CS0414;CS0067</NoWarn>` for the skeleton phase (assigned-unused fields, unraised events) and `<InternalsVisibleTo Include="SenderLib.Tests" />`. Remove the NoWarn once logic lands.
+* Test projects: `Sender/SenderLib.Tests` (xUnit, with `Fakes/` for the three pipeline interfaces) and `Receiver/ReceiverLib.Tests` (placeholder). Both in the solution.
+* Still **no project references** from the WinForms apps to the libs, and **no FFmpeg dependency**.
+* `WinFormsVideo.slnx` lists all six projects; `dotnet build WinFormsVideo.slnx` is clean.
+* `WinFormsSender`'s form class was renamed `Form1` -> `MainForm` (one-off developer-approved fix so `Program.cs` compiled). The form is still otherwise the empty default.
 
-When you add the first real library code you will need to tell the developer to add the `ProjectReference`s manually (that edits WinForms `.csproj` files, which you may not touch — see rules below). You *can* add the libs to `WinFormsVideo.slnx` yourself since that is not a WinForms project file.
-
-Target framework is `net10.0` for the libs and `net10.0-windows` for the WinForms apps. `Nullable` and `ImplicitUsings` are enabled everywhere.
+Target framework is `net10.0` for the libs/tests and `net10.0-windows` for the WinForms apps. `Nullable` and `ImplicitUsings` are enabled everywhere.
 
 ---
 
 # Build, Run & Test
 
-There is no test project yet. Common commands (run from repo root):
+Commands run from repo root:
 
 ```powershell
 # Build a single library (the usual inner loop for Claude)
 dotnet build Sender/SenderLib/SenderLib.csproj
 dotnet build Receiver/ReceiverLib/ReceiverLib.csproj
 
-# Build / run the apps
-dotnet build Sender/WinFormsSender/WinFormsSender.csproj
-dotnet run --project Sender/WinFormsSender/WinFormsSender.csproj
-dotnet run --project Receiver/WinFormsReceiver/WinFormsReceiver.csproj
+# Tests — xUnit
+dotnet test Sender/SenderLib.Tests/SenderLib.Tests.csproj
+dotnet test Receiver/ReceiverLib.Tests/ReceiverLib.Tests.csproj
+dotnet test Sender/SenderLib.Tests/SenderLib.Tests.csproj --filter "FullyQualifiedName~VideoSenderTests.Dispose"   # single test
 
-# Solution build (currently only builds WinFormsSender until the other projects are added to the .slnx)
+# Apps
+dotnet run --project Receiver/WinFormsReceiver/WinFormsReceiver.csproj
+dotnet run --project Sender/WinFormsSender/WinFormsSender.csproj
+
+# Whole solution
 dotnet build WinFormsVideo.slnx
 ```
 
-If/when a test project is added, prefer xUnit and run with `dotnet test`; a single test is `dotnet test --filter "FullyQualifiedName~SomeTest"`.
+Keep the libraries testable: new components should take their collaborators as constructor-injected
+interfaces (see `PlaybackController`) so `SenderLib.Tests`/`ReceiverLib.Tests` can substitute fakes.
 
 ---
 
@@ -473,3 +484,5 @@ The WinForms projects may be inspected for context, but changes to them must be 
 If a library API change requires a corresponding WinForms change, make the library change and clearly tell the developer what manual WinForms change is required.
 
 Do not modify the WinForms code yourself.
+
+NB: CURRENT.md is what we are currently working on, or when completed, what we last worked on.

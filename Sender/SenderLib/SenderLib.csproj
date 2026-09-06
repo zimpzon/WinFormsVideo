@@ -1,9 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Skeleton phase: stubbed members leave some fields assigned-but-unused (CS0414)
+         and some events declared-but-unraised (CS0067). Remove once logic lands. -->
+    <NoWarn>$(NoWarn);CS0414;CS0067</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SenderLib.Tests" />
+  </ItemGroup>
 
 </Project>

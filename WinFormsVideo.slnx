@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="Receiver/ReceiverLib/ReceiverLib.csproj" Id="2e21dae7-fc40-45d7-aa23-3fe9dcf8edf7" />
+  <Project Path="Receiver/WinFormsReceiver/WinFormsReceiver.csproj" />
+  <Project Path="Sender/SenderLib/SenderLib.csproj" Id="c12e9c7b-c26e-4ff7-80aa-5d03105a80dd" />
   <Project Path="Sender/WinFormsSender/WinFormsSender.csproj" />
 </Solution>
