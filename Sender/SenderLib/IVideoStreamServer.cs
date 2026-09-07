@@ -1,3 +1,5 @@
+using Protocol;
+
 namespace SenderLib;
 
 /// <summary>
@@ -16,8 +18,11 @@ public interface IVideoStreamServer : IDisposable
     /// <summary>Raised after a receiver disconnects or is dropped.</summary>
     event EventHandler<ReceiverConnectionEventArgs>? ReceiverDisconnected;
 
-    /// <summary>Begin listening for receiver connections.</summary>
-    void Start();
+    /// <summary>
+    /// Begin listening for receiver connections. <paramref name="streamInfo"/> is sent to each
+    /// receiver in the handshake so it can build a decoder.
+    /// </summary>
+    void Start(StreamInfo streamInfo);
 
     /// <summary>Stop listening and disconnect all receivers.</summary>
     void Stop();

@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using SenderLib;
 using SenderLib.Tests.Fakes;
 
@@ -5,16 +7,31 @@ namespace SenderLib.Tests;
 
 public class VideoSenderTests
 {
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+
+    private static int FreeTcpPort()
+    {
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
+    }
+
+    private static EncodedFrame Frame(double seconds, bool key = false) =>
+        new(TimeSpan.FromSeconds(seconds), key, new byte[512]);
+
     private static VideoSender CreateSender(
         out FakeVideoSource source,
         out FakeVideoStreamServer server,
-        out FakePlaybackClock clock)
+        out FakePlaybackClock clock,
+        IEnumerable<EncodedFrame>? frames = null)
     {
-        var configuration = new SenderConfiguration { ListenPort = 55555 };
-        source = new FakeVideoSource();
+        source = new FakeVideoSource(frames: frames);
         server = new FakeVideoStreamServer();
         clock = new FakePlaybackClock();
-        var controller = new PlaybackController(configuration, source, server, clock);
+        var controller = new PlaybackController(
+            new SenderConfiguration { ListenPort = 55555 }, source, server, clock);
         return new VideoSender(controller);
     }
 
@@ -54,24 +71,96 @@ public class VideoSenderTests
         Assert.True(server.IsDisposed);
     }
 
-    // Behaviours to cover once the pipeline logic is implemented:
-    [Fact(Skip = "Pipeline logic not implemented yet")]
-    public void Start_WithNoReceivers_StillAdvancesPlaybackAndBroadcasts()
+    [Fact]
+    public void Open_ForwardsToTheController_AndExposesVideoInfo()
     {
+        using var sender = CreateSender(out var source, out _, out _);
+
+        sender.Open("clip.mp4");
+
+        Assert.Equal("clip.mp4", source.OpenedPath);
+        Assert.Equal(PlaybackState.Ready, sender.State);
+        Assert.Same(source.VideoInfo, sender.VideoInfo);
+        Assert.Equal(source.VideoInfo.Duration, sender.Duration);
     }
 
-    [Fact(Skip = "Pipeline logic not implemented yet")]
-    public void Playback_SendsFramesPacedToTheirPresentationTimestamps()
+    [Fact]
+    public void StateChanged_BubblesThroughVideoSender()
     {
+        using var sender = CreateSender(out _, out _, out _);
+        var seen = new List<PlaybackState>();
+        sender.StateChanged += (_, e) => seen.Add(e.NewState);
+
+        sender.Open("clip.mp4");
+
+        Assert.Contains(PlaybackState.Ready, seen);
     }
 
-    [Fact(Skip = "Pipeline logic not implemented yet")]
-    public void Seek_RepositionsTheClockAndResumesFromTheNearestKeyframe()
+    [Fact]
+    public void Start_StreamsThroughTheFacadeWithNoReceivers()
     {
+        using var sender = CreateSender(
+            out _, out var server, out var clock,
+            frames: new[] { Frame(0, key: true), Frame(1, key: true), Frame(2, key: true) });
+
+        var ended = new ManualResetEventSlim();
+        sender.EndOfVideoReached += (_, _) => ended.Set();
+
+        sender.Open("clip.mp4");
+        clock.Position = TimeSpan.FromHours(1);
+        sender.Start();
+
+        Assert.True(ended.Wait(Timeout));
+        Assert.Equal(PlaybackState.Ended, sender.State);
+        Assert.Equal(3, server.BroadcastCount);
     }
 
-    [Fact(Skip = "Pipeline logic not implemented yet")]
-    public void LateReceiver_ConnectingMidStream_ReceivesFromCurrentPosition()
+    [Fact]
+    public void StatisticsUpdated_BubblesThroughVideoSender_OnEndOfVideo()
     {
+        using var sender = CreateSender(
+            out _, out _, out var clock,
+            frames: new[] { Frame(0, key: true), Frame(1, key: true) });
+
+        StatisticsUpdatedEventArgs? stats = null;
+        sender.StatisticsUpdated += (_, e) => stats = e;
+        var ended = new ManualResetEventSlim();
+        sender.EndOfVideoReached += (_, _) => ended.Set();
+
+        sender.Open("clip.mp4");
+        clock.Position = TimeSpan.FromHours(1);
+        sender.Start();
+
+        Assert.True(ended.Wait(Timeout));
+        Assert.NotNull(stats);
+        Assert.Equal(2, stats!.Statistics.FramesSent);
+    }
+
+    [Fact]
+    public void EndToEnd_DefaultPipeline_StreamsARealFileToALoopbackClient()
+    {
+        int port = FreeTcpPort();
+        using var video = TestVideo.CreateFile();
+        using var sender = new VideoSender(new SenderConfiguration { ListenAddress = "127.0.0.1", ListenPort = port });
+
+        var ended = new ManualResetEventSlim();
+        sender.EndOfVideoReached += (_, _) => ended.Set();
+
+        sender.Open(video.Path);
+        Assert.Equal(PlaybackState.Ready, sender.State);
+
+        using var client = new TcpClient();
+        client.Connect(IPAddress.Loopback, port);
+        NetworkStream stream = client.GetStream();
+        TcpTestIo.ReadHandshake(stream);
+
+        sender.Start();
+
+        var (firstHeader, firstPayload) = TcpTestIo.ReadFrame(stream);
+        Assert.True(firstHeader.IsKeyFrame);
+        Assert.NotEmpty(firstPayload);
+
+        Assert.True(ended.Wait(Timeout));
+        Assert.True(sender.Statistics.FramesSent >= 1);
     }
 }

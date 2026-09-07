@@ -1,3 +1,5 @@
+using Protocol;
+
 namespace SenderLib;
 
 /// <summary>
@@ -10,15 +12,20 @@ public sealed class VideoSender : IDisposable
 {
     private readonly PlaybackController _controller;
 
-    /// <summary>Create a sender with the default TCP/FFmpeg pipeline.</summary>
+    /// <summary>Create a sender with the default FFmpeg pipeline over the configured transport.</summary>
     public VideoSender(SenderConfiguration configuration)
         : this(new PlaybackController(
             configuration,
             new FFmpegVideoSource(),
-            new TcpVideoStreamServer(configuration),
+            CreateServer(configuration),
             new PlaybackClock()))
     {
     }
+
+    private static IVideoStreamServer CreateServer(SenderConfiguration configuration) =>
+        configuration.Transport == TransportKind.Udp
+            ? new UdpVideoStreamServer(configuration)
+            : new TcpVideoStreamServer(configuration);
 
     /// <summary>Create a sender around a pre-built pipeline. Used by tests to inject fakes.</summary>
     internal VideoSender(PlaybackController controller)

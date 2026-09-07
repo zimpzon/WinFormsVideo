@@ -20,6 +20,9 @@ public readonly struct EncodedFrame
     /// <summary>True if this frame can be decoded without any preceding frame.</summary>
     public bool IsKeyFrame { get; }
 
-    /// <summary>The encoded payload. Ownership/lifetime is defined by the producing <see cref="IVideoSource"/>.</summary>
+    /// <summary>
+    /// The encoded payload. Borrowed from a buffer the producing <see cref="IVideoSource"/> reuses —
+    /// only valid until the next <c>TryReadNextFrame</c> / <c>Seek</c> / <c>Close</c>. Copy to keep it.
+    /// </summary>
     public ReadOnlyMemory<byte> Data { get; }
 }

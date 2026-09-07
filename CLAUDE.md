@@ -6,12 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This solution is a demonstration application for **sending and receiving live video streams in C# over a network**.
 
-The solution consists of two WinForms applications and two class libraries:
+The solution consists of two WinForms applications, two class libraries, and a shared wire-format project:
 
 * `WinFormsSender` — sender UI
 * `SenderLib` — sender/backend implementation
 * `WinFormsReceiver` — receiver UI
 * `ReceiverLib` — receiver/backend implementation
+* `Protocol` — the on-the-wire format (`StreamProtocol` / `FrameHeader`), referenced by both libs
 
 The **WinForms projects are frontends only**. The majority of the application logic must live in the corresponding libraries.
 
@@ -19,20 +20,38 @@ The **WinForms projects are frontends only**. The majority of the application lo
 
 # Current State (read this first)
 
-The repo is **early scaffolding**. `SenderLib` has a full architecture skeleton (types, interfaces,
-event args, method stubs that `throw new NotImplementedException()`) — **no logic is implemented yet**.
-`ReceiverLib` is still an empty `Class1.cs`.
+`CURRENT.md` has the live task status — read it first. Summary of what's implemented:
 
-* `SenderLib` skeleton, flat in `Sender/SenderLib/`, namespace `SenderLib`:
-  * `VideoSender` — public facade (Open/Start/Pause/Resume/Stop/Restart/Seek/Close + state/stats/error events).
-  * `PlaybackController` (internal) — the injectable pipeline core: `IVideoSource` + `IPlaybackClock` + `IVideoStreamServer`.
-  * Concrete stubs: `FFmpegVideoSource` (all FFmpeg/native code goes here, nowhere else), `PlaybackClock`, `TcpVideoStreamServer`, `ReceiverConnection`, `StreamProtocol`/`FrameHeader`.
-  * DTOs/enums: `SenderConfiguration`, `PlaybackState`, `VideoInfo`, `SenderStatistics`, `SenderError`/`SenderErrorKind`, `EncodedFrame`.
-* Transport is **TCP first** (`IVideoStreamServer` keeps it swappable for UDP later). Sender is **streaming-only** — it does not expose decoded pixels.
-* `SenderLib.csproj` sets `<NoWarn>CS0414;CS0067</NoWarn>` for the skeleton phase (assigned-unused fields, unraised events) and `<InternalsVisibleTo Include="SenderLib.Tests" />`. Remove the NoWarn once logic lands.
-* Test projects: `Sender/SenderLib.Tests` (xUnit, with `Fakes/` for the three pipeline interfaces) and `Receiver/ReceiverLib.Tests` (placeholder). Both in the solution.
-* Still **no project references** from the WinForms apps to the libs, and **no FFmpeg dependency**.
-* `WinFormsVideo.slnx` lists all six projects; `dotnet build WinFormsVideo.slnx` is clean.
+* **`SenderLib` orchestration is real** (flat in `Sender/SenderLib/`, namespace `SenderLib`):
+  * `VideoSender` — public facade (Open/Start/Pause/Resume/Stop/Restart/Seek/Close + state/stats/error events), thin wrapper over `PlaybackController`.
+  * `PlaybackController` (internal) — working state machine + background pump thread driving read→pace→broadcast against the injected `IVideoSource` / `IPlaybackClock` / `IVideoStreamServer`. All `IVideoSource` access after `Open` is on the pump thread; control methods use a command queue. Streams with zero receivers. Raises `StateChanged` / `StatisticsUpdated` / `ErrorOccurred` / `EndOfVideoReached` **on the pump thread** (WinForms marshals).
+  * `PlaybackClock` (internal, `IPlaybackClock`) — `TimeProvider`-based monotonic clock; inject a `TimeProvider` for deterministic tests.
+  * `FramePacing` (internal, pure) — `Send` / `Wait` / `Drop` decision; keyframes never dropped, non-keyframes past a 200 ms drop threshold discarded.
+  * `TcpVideoStreamServer` (internal, `IVideoStreamServer`) + `ReceiverConnection` — **implemented**. `TcpListener` + accept thread; per-receiver writer/reader threads with a bounded (120-frame) drop-oldest-non-keyframe queue and a socket `SendTimeout`; server-wide monotonic sequence numbers; late joiners primed with the most recent keyframe. `Start(StreamInfo)` — the info is written in each receiver's handshake.
+  * `FFmpegVideoSource` (internal, `IVideoSource`) — **implemented** via `Sdcb.FFmpeg` 7.0.0 + `Sdcb.FFmpeg.runtime.windows-x64` 7.0.0. A pure demuxer (no decode): opens a container, reads video packets → `EncodedFrame` (PTS, keyframe flag, **copied into a reused grow-only buffer**), seeks to keyframes; `VideoInfo` also carries `CodecId` + `CodecExtradata` (the avcC block). **All FFmpeg / `Sdcb.FFmpeg.Raw` code lives in this one file** and its exceptions never leak (→ `FileNotFoundException` / `NotSupportedException`).
+  * DTOs/enums: `SenderConfiguration`, `PlaybackState`, `VideoInfo` (+`CodecId`/`CodecExtradata`), `SenderStatistics`, `SenderError`/`SenderErrorKind`, `EncodedFrame`.
+* **`SenderLib` has no stubs left** — the sender pipeline (open file → pace to PTS → TCP fan-out) is functionally complete. No `#pragma`/`NoWarn` suppressions anywhere; clean build.
+* **`Protocol`** — the shared wire format (`public`).
+  * **TCP** (`StreamProtocol`): handshake = `Magic` "WFV1" (4) + `Version` (1) + `StreamInfo` = `[codecId:4][width:4][height:4][extradataLen:4][extradata]` (LE). Then 24-byte `FrameHeader` + payload per frame.
+  * **UDP** (`DatagramProtocol`): every datagram = `Magic` + `Version` + `DatagramType` (`Subscribe`/`StreamInfo`/`FrameFragment`/`Bye`). `FrameFragment` = 27-byte `FragmentHeader` (frameSeq, ts, flags, totalLength, fragmentIndex/Count, fragmentLength) + ≤1200 payload bytes.
+  * `TransportKind { Tcp, Udp }`; `BufferUtil.EnsureCapacity(ref byte[], int)` — the grow-only buffer helper both libs use on the per-frame path.
+  * **No bitstream filter** — the receiver decodes raw AVCC packets using the handshake extradata (Sdcb.FFmpeg 7.0 has no `av_bsf_*`).
+* **Transport is selectable** via `SenderConfiguration.Transport` / `ReceiverConfiguration.Transport` (default `Tcp`). `VideoSender`/`VideoReceiver` ctors pick `TcpVideoStreamServer`+`TcpVideoClient` or `UdpVideoStreamServer`+`UdpVideoClient` — nothing else in the pipeline changes.
+  * **UDP** (`UdpVideoStreamServer` / `UdpVideoClient`): connectionless, unicast subscribe + 2 s keepalive + 6 s server-side timeout, MTU-safe fragmentation with reassembly. **A frame with a missing or out-of-order fragment is dropped whole** — no retransmit, no reorder buffer. `IVideoClient.FramesDropped` reports transport losses (0 for TCP), folded into `ReceiverStatistics.DroppedFrames`.
+* Sender is **streaming-only** — forwards compressed `EncodedFrame`s (AVCC as stored in the container), does not decode to pixels.
+* **`ReceiverLib`** (flat, namespace `ReceiverLib`): `VideoReceiver` facade (Connect/Disconnect/Pause/Resume + state/stats/frame/error events) over `ReceivePipeline` (injectable: `IVideoClient` + `IVideoDecoder` + `IPlaybackClock`).
+  * `TcpVideoClient` (internal, `IVideoClient`) — **implemented**. Connects, reads the two-part handshake → exposes `Protocol.StreamInfo?`; pull-style blocking `TryReadPacket` → `ReceivedPacket` (payload **read into a reused grow-only buffer**; returns false on EOF/socket error + raises `Disconnected`; throws only on a malformed header).
+  * `FFmpegVideoDecoder` (internal, `IVideoDecoder`, `unsafe`) — **implemented** via Sdcb.FFmpeg. `Configure(StreamInfo)` builds a `CodecContext` (decoder by codec id + `av_malloc`'d `extradata` + open); `TryDecode` feeds the AVCC bytes (borrowed-pointer `Packet` pinned across `SendPacket`), `ReceiveFrame`, then **raw `sws_scale` (reused plane/stride arrays) straight into a 3-buffer ring** → `VideoFrame` (packed BGRA32). **All Sdcb.FFmpeg / native code lives in this one file.** Assumes 1 packet → 1 frame.
+  * `ReceivePipeline` (internal) — **implemented**. Background pump: connect → `decoder.Configure` → loop read/decode → drop-only pacing (present as decoded; drop frames >200 ms behind the clock) → `FrameReady`. State machine `Idle→Connecting→Buffering→Playing⇄Paused` + `Stopped`/`Faulted`; `Pause` freezes + discards, `Resume` jumps to live; rolling `ReceiverStatistics`; errors mapped, never escape.
+  * `PlaybackClock` (internal, `IPlaybackClock`) — **implemented**, `TimeProvider`-based (a copy of `SenderLib`'s; candidate to share).
+  * **`ReceiverLib` has no stubs left.** `ReceiverLib.csproj` has `<AllowUnsafeBlocks>` + `Sdcb.FFmpeg` refs + `InternalsVisibleTo`; no `NoWarn`.
+  * DTOs: `ReceiverConfiguration`/`ReceiverState`/`VideoInfo`/`VideoFrame` (a `readonly struct`, +`FramePixelFormat`, WinForms-agnostic)/`ReceivedPacket`/`ReceiverStatistics`/`ReceiverError`. `FrameReady` is `delegate void VideoFrameHandler(object?, in VideoFrame)` — **not** `EventHandler<T>` (no per-frame EventArgs).
+* **No per-frame allocation on the hot path.** `EncodedFrame.Data` / `ReceivedPacket.Data` / `VideoFrame.Pixels` are **borrowed from reused buffers** — valid only until the next producing call (or, for `Pixels`, only during the `FrameReady` callback). A consumer that keeps a frame must copy it. Guarded by `*DoesNotAllocatePerFrame` tests.
+* **The streaming pipeline is functionally complete** — a `VideoSender` streams a file over TCP and a `VideoReceiver` decodes it to BGRA frames, proven by `SenderToReceiverEndToEndTests`. Remaining work is the two WinForms UIs (developer-owned) + their `ProjectReference`s to the libs.
+* Tests: `Sender/SenderLib.Tests` (74) and `Receiver/ReceiverLib.Tests` (37) — **0 skipped**. `Fakes/` for the seams; real loopback sockets (TCP + UDP); `TestVideo`/`DecoderTestData` encode+demux a tiny real mp4 in-memory; `Microsoft.Extensions.TimeProvider.Testing`; `ProtocolTestServer` loopback helper; `*DoesNotAllocatePerFrame` alloc guards; `SenderToReceiverEndToEndTests` is a `[Theory]` over both transports. `ReceiverLib.Tests` also references `SenderLib` for the end-to-end test. Both libs have `<InternalsVisibleTo>` for their test project.
+* Still **no project references** from the WinForms apps to the libs. Both libs pull native FFmpeg (win-x64) — the WinForms apps must run x64 once they reference them (AnyCPU on 64-bit Windows already does).
+* `Sender/SenderCli` (`SenderCli <video-file> [port] [address]`) and `Receiver/ReceiverCli` (`ReceiverCli [address] [port]`) — small console apps that drive `VideoSender` / `VideoReceiver` and print per-second stats. Reference flows for the two WinForms apps; verified streaming a real 1080p60 file between them.
+* `WinFormsVideo.slnx` lists all nine projects; `dotnet build WinFormsVideo.slnx` is clean.
 * `WinFormsSender`'s form class was renamed `Form1` -> `MainForm` (one-off developer-approved fix so `Program.cs` compiled). The form is still otherwise the empty default.
 
 Target framework is `net10.0` for the libs/tests and `net10.0-windows` for the WinForms apps. `Nullable` and `ImplicitUsings` are enabled everywhere.
@@ -481,8 +500,10 @@ WinFormsReceiver/**
 
 The WinForms projects may be inspected for context, but changes to them must be left to the developer.
 
-If a library API change requires a corresponding WinForms change, make the library change and clearly tell the developer what manual WinForms change is required.
+If a library API change requires a corresponding WinForms change, make the library change and clearly
+tell the developer what manual WinForms change is required.
 
 Do not modify the WinForms code yourself.
 
-NB: CURRENT.md is what we are currently working on, or when completed, what we last worked on.
+NB: CURRENT.md is what we are currently working on, or when completed, what we last worked on. You must
+fill in CURRENT.md whenever starting on a task.
