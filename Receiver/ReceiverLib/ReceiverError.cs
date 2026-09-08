@@ -13,9 +13,12 @@ public sealed class ReceiverError
         Exception = exception;
     }
 
+    /// <summary>What went wrong, as a stable category. Branch on this — not on <see cref="Message"/>.</summary>
     public ReceiverErrorKind Kind { get; }
 
+    /// <summary>A human-readable description, suitable for a status line or a log.</summary>
     public string Message { get; }
 
+    /// <summary>The underlying exception, when there was one — for logging, not for display.</summary>
     public Exception? Exception { get; }
 }

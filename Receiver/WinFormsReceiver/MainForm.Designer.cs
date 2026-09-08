@@ -28,70 +28,97 @@
         /// </summary>
         private void InitializeComponent()
         {
-            videoPanel1 = new WinFormsReceiver.Components.VideoPanel();
+            videoPanel = new WinFormsReceiver.Components.VideoPanel();
+            labelStatus = new Label();
             btnPlayVideo = new Button();
-            btnPauseVideo = new Button();
-            richTextLog = new RichTextBox();
+            labelVideoSize = new Label();
+            btnShowLog = new Button();
+            videoPanel.SuspendLayout();
             SuspendLayout();
             // 
-            // videoPanel1
+            // videoPanel
             // 
-            videoPanel1.Location = new Point(12, 12);
-            videoPanel1.Name = "videoPanel1";
-            videoPanel1.Size = new Size(744, 358);
-            videoPanel1.TabIndex = 0;
+            videoPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            videoPanel.BorderStyle = BorderStyle.Fixed3D;
+            videoPanel.Controls.Add(labelStatus);
+            videoPanel.Location = new Point(12, 12);
+            videoPanel.Name = "videoPanel";
+            videoPanel.Size = new Size(636, 480);
+            videoPanel.TabIndex = 0;
+            // 
+            // labelStatus
+            // 
+            labelStatus.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            labelStatus.BackColor = Color.Transparent;
+            labelStatus.Font = new Font("Cascadia Mono", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            labelStatus.ForeColor = Color.Yellow;
+            labelStatus.Location = new Point(3, 110);
+            labelStatus.Name = "labelStatus";
+            labelStatus.Size = new Size(621, 141);
+            labelStatus.TabIndex = 0;
+            labelStatus.Text = "Press play to start video";
+            labelStatus.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // btnPlayVideo
             // 
-            btnPlayVideo.Location = new Point(12, 397);
+            btnPlayVideo.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnPlayVideo.Font = new Font("Segoe UI Symbol", 20F);
+            btnPlayVideo.Location = new Point(17, 496);
             btnPlayVideo.Name = "btnPlayVideo";
-            btnPlayVideo.Size = new Size(178, 34);
+            btnPlayVideo.Size = new Size(64, 32);
             btnPlayVideo.TabIndex = 1;
-            btnPlayVideo.Text = "Play";
+            btnPlayVideo.Text = "⏵";
+            btnPlayVideo.UseCompatibleTextRendering = true;
             btnPlayVideo.UseVisualStyleBackColor = true;
             btnPlayVideo.Click += btnPlayVideo_Click;
             // 
-            // btnPauseVideo
+            // labelVideoSize
             // 
-            btnPauseVideo.Enabled = false;
-            btnPauseVideo.Location = new Point(196, 397);
-            btnPauseVideo.Name = "btnPauseVideo";
-            btnPauseVideo.Size = new Size(178, 34);
-            btnPauseVideo.TabIndex = 2;
-            btnPauseVideo.Text = "Pause";
-            btnPauseVideo.UseVisualStyleBackColor = true;
-            btnPauseVideo.Click += btnPauseVideo_Click;
+            labelVideoSize.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            labelVideoSize.AutoSize = true;
+            labelVideoSize.Location = new Point(397, 503);
+            labelVideoSize.Name = "labelVideoSize";
+            labelVideoSize.Size = new Size(155, 25);
+            labelVideoSize.TabIndex = 4;
+            labelVideoSize.Text = "0 x 0 (native 0 x 0)";
+            labelVideoSize.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // richTextLog
+            // btnShowLog
             // 
-            richTextLog.Location = new Point(12, 474);
-            richTextLog.Name = "richTextLog";
-            richTextLog.ReadOnly = true;
-            richTextLog.Size = new Size(575, 144);
-            richTextLog.TabIndex = 3;
-            richTextLog.Text = "";
-            richTextLog.WordWrap = false;
+            btnShowLog.Location = new Point(1001, 461);
+            btnShowLog.Name = "btnShowLog";
+            btnShowLog.Size = new Size(112, 34);
+            btnShowLog.TabIndex = 5;
+            btnShowLog.Text = "Log...";
+            btnShowLog.UseVisualStyleBackColor = true;
+            btnShowLog.Click += btnShowLog_Click;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1368, 724);
-            Controls.Add(richTextLog);
-            Controls.Add(btnPauseVideo);
+            BackColor = Color.DarkGray;
+            ClientSize = new Size(1231, 544);
+            Controls.Add(btnShowLog);
+            Controls.Add(labelVideoSize);
             Controls.Add(btnPlayVideo);
-            Controls.Add(videoPanel1);
+            Controls.Add(videoPanel);
+            MinimumSize = new Size(1000, 400);
             Name = "MainForm";
             Text = "Form1";
             FormClosing += MainForm_FormClosing;
+            Resize += MainForm_Resize;
+            videoPanel.ResumeLayout(false);
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
 
-        private Components.VideoPanel videoPanel1;
+        private Components.VideoPanel videoPanel;
         private Button btnPlayVideo;
-        private Button btnPauseVideo;
-        private RichTextBox richTextLog;
+        private Label labelVideoSize;
+        private Button btnShowLog;
+        private Label labelStatus;
     }
 }

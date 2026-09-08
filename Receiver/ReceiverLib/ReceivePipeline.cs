@@ -123,7 +123,7 @@ internal sealed class ReceivePipeline : IDisposable
         }
         catch (Exception ex)
         {
-            RaiseError(MapError(ex));
+            RaiseError(MapStreamError(ex));
         }
 
         _clock.Reset();
@@ -189,6 +189,7 @@ internal sealed class ReceivePipeline : IDisposable
 
     private void PumpLoop(CancellationToken token)
     {
+        bool streamEstablished = false;
         try
         {
             SetState(ReceiverState.Connecting);
@@ -202,6 +203,7 @@ internal sealed class ReceivePipeline : IDisposable
             _lastStatsTick = Environment.TickCount64;
             _lastStatsPresented = _decoder.OutputBuffers?.PresentedCount ?? 0;
             _rebase = true;
+            streamEstablished = true; // past this point a failure is a lost stream, not a failed connect
             SetState(ReceiverState.Buffering);
 
             long baselineTicks = 0;
@@ -267,7 +269,7 @@ internal sealed class ReceivePipeline : IDisposable
         catch (Exception ex)
         {
             SetState(ReceiverState.Faulted);
-            RaiseError(MapError(ex));
+            RaiseError(streamEstablished ? MapStreamError(ex) : MapConnectError(ex));
         }
     }
 
@@ -371,7 +373,24 @@ internal sealed class ReceivePipeline : IDisposable
     private void RaiseError(ReceiverError error) =>
         ErrorOccurred?.Invoke(this, new ReceiverErrorEventArgs(error));
 
-    private static ReceiverError MapError(Exception exception) => exception switch
+    /// <summary>
+    /// Map a failure that happened <b>while establishing the stream</b> (connect + handshake +
+    /// decoder setup). "No sender at that endpoint" lands here — a timed-out or reset handshake
+    /// socket — and becomes <see cref="ReceiverErrorKind.ConnectionFailed"/> with a clean message,
+    /// not the raw OS text. Switch on <see cref="ReceiverError.Kind"/>, never the message.
+    /// </summary>
+    private ReceiverError MapConnectError(Exception exception) => exception switch
+    {
+        NotSupportedException => new ReceiverError(ReceiverErrorKind.UnsupportedCodec, exception.Message, exception),
+        InvalidDataException => new ReceiverError(ReceiverErrorKind.ProtocolError, exception.Message, exception),
+        _ => new ReceiverError(
+            ReceiverErrorKind.ConnectionFailed,
+            $"No video stream at {_configuration.SenderAddress}:{_configuration.SenderPort}.",
+            exception),
+    };
+
+    /// <summary>Map a failure that happened once the stream was already running.</summary>
+    private static ReceiverError MapStreamError(Exception exception) => exception switch
     {
         SocketException => new ReceiverError(ReceiverErrorKind.ConnectionLost, exception.Message, exception),
         InvalidDataException => new ReceiverError(ReceiverErrorKind.ProtocolError, exception.Message, exception),

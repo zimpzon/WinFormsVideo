@@ -141,5 +141,6 @@ public class VideoReceiverTests
 
         Assert.Equal(ReceiverState.Faulted, receiver.State);
         Assert.NotNull(error);
+        Assert.Equal(ReceiverErrorKind.ConnectionFailed, error!.Kind); // "no video to show" signal
     }
 }

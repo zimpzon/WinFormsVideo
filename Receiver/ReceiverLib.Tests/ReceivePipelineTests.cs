@@ -105,9 +105,10 @@ public class ReceivePipelineTests
     }
 
     [Fact]
-    public void Connect_WhenTheClientFailsToConnect_Faults()
+    public void Connect_WhenNoSenderIsReachable_Faults_WithConnectionFailed()
     {
-        var client = new FakeVideoClient { ThrowOnConnect = new SocketException(10061) };
+        // 10054 = "An existing connection was forcibly closed" — what a dead UDP port produces on Windows
+        var client = new FakeVideoClient { ThrowOnConnect = new SocketException(10054) };
         using ReceivePipeline pipeline = Create(client, out _, out _);
         ReceiverError? error = null;
         pipeline.ErrorOccurred += (_, e) => error = e.Error;
@@ -116,6 +117,25 @@ public class ReceivePipelineTests
 
         Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Faulted));
         Assert.NotNull(error);
+        Assert.Equal(ReceiverErrorKind.ConnectionFailed, error!.Kind);
+        Assert.DoesNotContain("forcibly closed", error.Message); // the raw OS text is not surfaced
+        Assert.IsType<SocketException>(error.Exception);         // ...but it's kept for logging
+    }
+
+    [Fact]
+    public void MidStreamFailure_AfterConnecting_ReportsConnectionLost_NotConnectionFailed()
+    {
+        var client = new FakeVideoClient(packets: new[] { Packet(0, 0) }, blockWhenEmpty: true);
+        using ReceivePipeline pipeline = Create(client, out _, out _);
+        ReceiverError? error = null;
+        pipeline.ErrorOccurred += (_, e) => error = e.Error;
+
+        pipeline.Connect();
+        Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Playing));
+
+        client.FailRead(new SocketException(10054));
+
+        Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Faulted));
         Assert.Equal(ReceiverErrorKind.ConnectionLost, error!.Kind);
     }
 

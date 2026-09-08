@@ -2,15 +2,20 @@ using ReceiverLib;
 
 namespace WinFormsReceiver
 {
+    enum PlayButtonState { DoPlay, DoPause };
+
     public partial class MainForm : Form
     {
         private bool _closing = false;
+        private LogForm _logForm = new LogForm();
+        private PlayButtonState _playButtonState = PlayButtonState.DoPlay;
 
         public MainForm()
         {
             InitializeComponent();
 
-            Helpers.Log(richTextLog, "Started...");
+            _logForm.LogMessage("Started...");
+            UpdateVideoSizeLabel();
 
             Program.Context.VideoReceiver.StateChanged += OnVideoReceiverStateChanged;
             Program.Context.VideoReceiver.ErrorOccurred += OnVideoReceiverErrorOccured;
@@ -21,8 +26,8 @@ namespace WinFormsReceiver
             BeginInvoke(() =>
             {
                 if (_closing) return;
-
-                Helpers.Log(richTextLog, $"Video receiver reported error: {e.Error.Message}");
+                labelStatus.Text = $"An error occured, press play to try again ({e.Error.Kind}). See Log for more information";
+                _logForm.LogMessage($"Video receiver reported error: {e.Error.Kind} ({e.Error.Message})", Helpers.LogLevel.Error);
                 UpdatePlaybackButtonsState();
             });
         }
@@ -39,37 +44,67 @@ namespace WinFormsReceiver
             {
                 if (_closing) return;
 
-                Helpers.Log(richTextLog, $"Video receiver state changed: {e.NewState}");
+                _logForm.LogMessage($"Video receiver state changed: {e.NewState}");
                 UpdatePlaybackButtonsState();
+                UpdateVideoSizeLabel();
+                labelStatus.Text = e.NewState.ToString();
             });
         }
 
         private void UpdatePlaybackButtonsState()
         {
+            const string PlayIcon = "⏵";
+            const string PauseIcon = "⏸";
+
             ReceiverState state = Program.Context.VideoReceiver.State;
-            btnPlayVideo.Enabled = state == ReceiverState.Stopped || state == ReceiverState.Paused;
-            btnPauseVideo.Enabled = state == ReceiverState.Playing;
+            bool canPause = state == ReceiverState.Playing;
+            _playButtonState = canPause ? PlayButtonState.DoPause : PlayButtonState.DoPlay;
+            btnPlayVideo.Text = canPause ? PauseIcon : PlayIcon;
         }
 
         private void btnPlayVideo_Click(object sender, EventArgs e)
         {
-            Helpers.Log(richTextLog, "Starting video playback...");
-            btnPlayVideo.Enabled = false;
-            if (Program.Context.VideoReceiver.State == ReceiverState.Paused)
+            _logForm.LogMessage("Play/Pause clicked...");
+            if (_playButtonState == PlayButtonState.DoPause)
             {
-                Program.Context.VideoReceiver.Resume();
+                Program.Context.VideoReceiver.Pause();
             }
             else
             {
-                Program.Context.VideoReceiver.Connect();
+                if (Program.Context.VideoReceiver.State == ReceiverState.Paused)
+                {
+                    Program.Context.VideoReceiver.Resume();
+                }
+                else
+                {
+                    Program.Context.VideoReceiver.Connect();
+                    UpdateVideoSizeLabel();
+                }
             }
+            UpdatePlaybackButtonsState();
         }
 
-        private void btnPauseVideo_Click(object sender, EventArgs e)
+        private void MainForm_Resize(object sender, EventArgs e)
         {
-            Helpers.Log(richTextLog, "Pausing video playback...");
-            btnPauseVideo.Enabled = false;
-            Program.Context.VideoReceiver.Pause();
+            UpdateVideoSizeLabel();
+        }
+
+        void UpdateVideoSizeLabel()
+        {
+            int nativeW = 0;
+            int nativeH = 0;
+
+            if (Program.Context.VideoReceiver.Statistics.Resolution.HasValue)
+            {
+                (nativeW, nativeH) = Program.Context.VideoReceiver.Statistics.Resolution.Value;
+            }
+
+            labelVideoSize.Text = $"{videoPanel.Width} x {videoPanel.Height} (native {nativeW} x {nativeH})"; ;
+        }
+
+        private void btnShowLog_Click(object sender, EventArgs e)
+        {
+            _logForm.Show();
         }
     }
 }

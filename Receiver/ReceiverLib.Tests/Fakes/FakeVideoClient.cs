@@ -10,6 +10,7 @@ internal sealed class FakeVideoClient : IVideoClient
     private readonly Queue<ReceivedPacket> _packets = new();
     private readonly ManualResetEventSlim _signal = new(false);
     private bool _ended;
+    private volatile Exception? _failRead;
 
     public FakeVideoClient(StreamInfo? streamInfo = null, IEnumerable<ReceivedPacket>? packets = null, bool blockWhenEmpty = false)
     {
@@ -93,10 +94,22 @@ internal sealed class FakeVideoClient : IVideoClient
         _signal.Set();
     }
 
+    /// <summary>Make the next <see cref="TryReadPacket"/> throw — simulates a mid-stream drop.</summary>
+    public void FailRead(Exception exception)
+    {
+        _failRead = exception;
+        _signal.Set();
+    }
+
     public bool TryReadPacket(out ReceivedPacket packet)
     {
         while (true)
         {
+            if (_failRead is { } ex)
+            {
+                throw ex;
+            }
+
             lock (_gate)
             {
                 if (_packets.Count > 0)
