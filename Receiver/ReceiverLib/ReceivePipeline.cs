@@ -42,6 +42,7 @@ internal sealed class ReceivePipeline : IDisposable
     private long _lastStatsPackets;
     private long _lastStatsFrames;
     private long _lastStatsBytes;
+    private long _lastStatsPresented;
 
     public ReceivePipeline(
         ReceiverConfiguration configuration,
@@ -64,6 +65,9 @@ internal sealed class ReceivePipeline : IDisposable
 
     public VideoInfo? VideoInfo { get; private set; }
 
+    /// <summary>The decoder's zero-copy output pool. Non-null once the stream has been negotiated.</summary>
+    public FrameBufferPool? FrameBuffers => _decoder.OutputBuffers;
+
     public ReceiverStatistics Statistics => Volatile.Read(ref _statistics);
 
     public event EventHandler<ReceiverStateChangedEventArgs>? StateChanged;
@@ -85,8 +89,7 @@ internal sealed class ReceivePipeline : IDisposable
         {
             if (_pumpThread is { IsAlive: true })
             {
-                RaiseError(new ReceiverError(ReceiverErrorKind.ConfigurationError, $"Cannot connect while {_state}."));
-                return;
+                return; // already connecting / connected — no-op
             }
 
             _pumpThread = null;
@@ -104,6 +107,14 @@ internal sealed class ReceivePipeline : IDisposable
 
     public void Disconnect()
     {
+        lock (_gate)
+        {
+            if (_pumpThread is null && _state is ReceiverState.Idle or ReceiverState.Stopped)
+            {
+                return; // never connected, or already disconnected — no-op
+            }
+        }
+
         StopPump();
 
         try
@@ -127,9 +138,9 @@ internal sealed class ReceivePipeline : IDisposable
 
     public void Pause()
     {
-        if (!RequireState(nameof(Pause), ReceiverState.Playing, ReceiverState.Buffering))
+        if (_disposed || State is not (ReceiverState.Playing or ReceiverState.Buffering))
         {
-            return;
+            return; // not viewing — nothing to pause
         }
 
         _clock.Pause();
@@ -138,13 +149,26 @@ internal sealed class ReceivePipeline : IDisposable
 
     public void Resume()
     {
-        if (!RequireState(nameof(Resume), ReceiverState.Paused))
+        if (_disposed || State != ReceiverState.Paused)
         {
-            return;
+            return; // not paused — nothing to resume
         }
 
         _rebase = true; // next decoded frame re-establishes the timeline (jump to live)
         SetState(ReceiverState.Buffering);
+    }
+
+    /// <summary>Hand the newest decoded frame to a display consumer (UI thread).</summary>
+    public bool TryAcquireFrame(out RentedFrame frame)
+    {
+        FrameBufferPool? buffers = _decoder.OutputBuffers;
+        if (buffers is null)
+        {
+            frame = default;
+            return false;
+        }
+
+        return buffers.TryAcquireFrame(out frame);
     }
 
     public void Dispose()
@@ -176,6 +200,7 @@ internal sealed class ReceivePipeline : IDisposable
             VideoInfo = new VideoInfo(info.Width, info.Height, frameRate: 0, _decoder.CodecName);
 
             _lastStatsTick = Environment.TickCount64;
+            _lastStatsPresented = _decoder.OutputBuffers?.PresentedCount ?? 0;
             _rebase = true;
             SetState(ReceiverState.Buffering);
 
@@ -292,11 +317,13 @@ internal sealed class ReceivePipeline : IDisposable
     {
         long now = Environment.TickCount64;
         double seconds = Math.Max(1, now - _lastStatsTick) / 1000.0;
+        long presented = _decoder.OutputBuffers?.PresentedCount ?? 0;
 
         var snapshot = new ReceiverStatistics
         {
             ReceivedFps = (_packetsReceived - _lastStatsPackets) / seconds,
             DecodedFps = (_framesDecoded - _lastStatsFrames) / seconds,
+            PresentedFps = Math.Max(0, presented - _lastStatsPresented) / seconds,
             DroppedFrames = _framesDropped + _client.FramesDropped, // late frames + transport losses (UDP)
             NetworkBitrateBitsPerSecond = (_bytesReceived - _lastStatsBytes) * 8 / seconds,
             Latency = null,
@@ -311,6 +338,7 @@ internal sealed class ReceivePipeline : IDisposable
         _lastStatsPackets = _packetsReceived;
         _lastStatsFrames = _framesDecoded;
         _lastStatsBytes = _bytesReceived;
+        _lastStatsPresented = presented;
 
         StatisticsUpdated?.Invoke(this, new StatisticsUpdatedEventArgs(snapshot));
     }
@@ -320,29 +348,7 @@ internal sealed class ReceivePipeline : IDisposable
     private void ResetCounters()
     {
         _packetsReceived = _framesDecoded = _framesDropped = _bytesReceived = 0;
-        _lastStatsPackets = _lastStatsFrames = _lastStatsBytes = 0;
-    }
-
-    private bool RequireState(string operation, params ReadOnlySpan<ReceiverState> allowed)
-    {
-        if (_disposed)
-        {
-            return false;
-        }
-
-        ReceiverState current = State;
-        foreach (ReceiverState state in allowed)
-        {
-            if (state == current)
-            {
-                return true;
-            }
-        }
-
-        RaiseError(new ReceiverError(
-            ReceiverErrorKind.ConfigurationError,
-            $"Cannot {operation} while receiver state is {current}."));
-        return false;
+        _lastStatsPackets = _lastStatsFrames = _lastStatsBytes = _lastStatsPresented = 0;
     }
 
     private void SetState(ReceiverState next)

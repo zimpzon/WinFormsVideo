@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReceiverLib.WinForms\ReceiverLib.WinForms.csproj" />
+    <ProjectReference Include="..\ReceiverLib\ReceiverLib.csproj" />
+  </ItemGroup>
 
 </Project>

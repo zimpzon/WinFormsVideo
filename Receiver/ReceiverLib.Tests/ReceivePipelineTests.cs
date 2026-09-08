@@ -136,7 +136,7 @@ public class ReceivePipelineTests
     }
 
     [Fact]
-    public void Connect_WhileAlreadyConnected_IsRejected()
+    public void Connect_WhileAlreadyConnected_IsANoOp()
     {
         var client = new FakeVideoClient(packets: new[] { Packet(0, 0) }, blockWhenEmpty: true);
         using ReceivePipeline pipeline = Create(client, out _, out _);
@@ -144,11 +144,52 @@ public class ReceivePipelineTests
         Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Playing));
 
         ReceiverError? error = null;
+        var stateChanges = 0;
         pipeline.ErrorOccurred += (_, e) => error = e.Error;
-        pipeline.Connect();
+        pipeline.StateChanged += (_, _) => Interlocked.Increment(ref stateChanges);
 
-        Assert.NotNull(error);
-        Assert.Equal(ReceiverErrorKind.ConfigurationError, error!.Kind);
+        pipeline.Connect(); // redundant
+        pipeline.Connect(); // redundant
+        Thread.Sleep(50);
+
+        Assert.Null(error); // no error — redundant Connect is a silent no-op
+        Assert.Equal(0, Volatile.Read(ref stateChanges));
         Assert.Equal(ReceiverState.Playing, pipeline.State);
+    }
+
+    [Fact]
+    public void ControlMethods_AreSafeToCallRepeatedlyAndInAnyOrder_WithoutErrors()
+    {
+        var client = new FakeVideoClient(packets: new[] { Packet(0, 0) }, blockWhenEmpty: true);
+        using ReceivePipeline pipeline = Create(client, out _, out _);
+        var errors = new ConcurrentQueue<ReceiverError>();
+        pipeline.ErrorOccurred += (_, e) => errors.Enqueue(e.Error);
+
+        // wrong-state calls before Connect — all no-ops
+        pipeline.Pause();
+        pipeline.Resume();
+        pipeline.Disconnect();
+        Assert.Equal(ReceiverState.Idle, pipeline.State);
+
+        pipeline.Connect();
+        Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Playing));
+
+        pipeline.Pause();
+        pipeline.Pause();          // redundant
+        Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Paused));
+        pipeline.Resume();
+        pipeline.Resume();         // redundant
+        client.Push(Packet(1, 0.1));
+        Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Playing));
+
+        pipeline.Disconnect();
+        pipeline.Disconnect();     // redundant
+        Assert.Equal(ReceiverState.Stopped, pipeline.State);
+
+        pipeline.Connect();        // reconnect after disconnect
+        client.Push(Packet(2, 0.2));
+        Assert.True(SpinUntil(() => pipeline.State == ReceiverState.Playing));
+
+        Assert.Empty(errors);
     }
 }

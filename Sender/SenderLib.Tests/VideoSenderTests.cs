@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using SenderLib;
 using SenderLib.Tests.Fakes;
 
@@ -8,15 +6,6 @@ namespace SenderLib.Tests;
 public class VideoSenderTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
-
-    private static int FreeTcpPort()
-    {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        return port;
-    }
 
     private static EncodedFrame Frame(double seconds, bool key = false) =>
         new(TimeSpan.FromSeconds(seconds), key, new byte[512]);
@@ -136,31 +125,6 @@ public class VideoSenderTests
         Assert.Equal(2, stats!.Statistics.FramesSent);
     }
 
-    [Fact]
-    public void EndToEnd_DefaultPipeline_StreamsARealFileToALoopbackClient()
-    {
-        int port = FreeTcpPort();
-        using var video = TestVideo.CreateFile();
-        using var sender = new VideoSender(new SenderConfiguration { ListenAddress = "127.0.0.1", ListenPort = port });
-
-        var ended = new ManualResetEventSlim();
-        sender.EndOfVideoReached += (_, _) => ended.Set();
-
-        sender.Open(video.Path);
-        Assert.Equal(PlaybackState.Ready, sender.State);
-
-        using var client = new TcpClient();
-        client.Connect(IPAddress.Loopback, port);
-        NetworkStream stream = client.GetStream();
-        TcpTestIo.ReadHandshake(stream);
-
-        sender.Start();
-
-        var (firstHeader, firstPayload) = TcpTestIo.ReadFrame(stream);
-        Assert.True(firstHeader.IsKeyFrame);
-        Assert.NotEmpty(firstPayload);
-
-        Assert.True(ended.Wait(Timeout));
-        Assert.True(sender.Statistics.FramesSent >= 1);
-    }
+    // End-to-end coverage of the default new VideoSender(config) pipeline over a real socket lives
+    // in ReceiverLib.Tests/SenderToReceiverEndToEndTests (real sender -> real receiver, real file).
 }

@@ -1,6 +1,134 @@
 # CURRENT
 
-## Now: UDP transport (alongside TCP) — DONE
+## Now: TCP transport removed — UDP-only — DONE
+
+The solution is **UDP-only**. TCP was the default/"reliable" path; it's gone because the next step
+is *simulated* network latency and packet loss layered on the UDP path, which makes the real TCP
+code dead weight. The `IVideoStreamServer` / `IVideoClient` seams already isolated the transport, so
+this was a deletion — `PlaybackController`, `ReceivePipeline`, `FFmpegVideoSource`,
+`FFmpegVideoDecoder`, `FramePacing`, `VideoSender`, `VideoReceiver` are unchanged in behaviour.
+
+### Deleted
+
+- `Protocol/StreamProtocol.cs` (TCP handshake + `FrameHeader`), `Protocol/TransportKind.cs`.
+- `SenderLib/TcpVideoStreamServer.cs`, `SenderLib/ReceiverConnection.cs` (the per-receiver
+  writer/reader threads + bounded drop-oldest queue — the trickiest concurrency in the repo).
+- `ReceiverLib/TcpVideoClient.cs`.
+- Tests: `TcpVideoStreamServerTests`, `TcpTestIo`, `StreamProtocolTests` (Sender);
+  `TcpVideoClientTests`, `ProtocolTestServer` (Receiver).
+
+### Kept / moved
+
+- `StreamInfo` + `FrameFlags` → **`Protocol/StreamInfo.cs`** (used by the UDP path too).
+- The three shared wire constants `Magic` / `Version` / `MaxPayloadLength` → now members of
+  **`DatagramProtocol`**.
+- `IVideoStreamServer` / `IVideoClient` interfaces stay (the DI/test seam; one implementation each).
+- `SenderConfiguration` / `ReceiverConfiguration` lost their `Transport` property; `VideoSender` /
+  `VideoReceiver` ctors hard-wire `UdpVideoStreamServer` / `UdpVideoClient`. Both CLIs lost `--udp`.
+
+### Tests: SenderLib 56, ReceiverLib 38 — 0 skipped
+
+`SenderToReceiverEndToEndTests` is a plain `[Fact]` again (was a `[Theory]` over both transports).
+New `StreamInfoTests` (5) covers the `StreamInfo` serialization edge cases that
+`StreamProtocolTests` used to. `dotnet build WinFormsVideo.slnx` → 0 warnings.
+
+### Also: control methods are idempotent no-ops
+
+`VideoSender` (Open/Start/Pause/Resume/Stop/Restart/Seek/Close) and `VideoReceiver`
+(Connect/Disconnect/Pause/Resume) no longer raise a `ConfigurationError` when called in a state
+that doesn't allow the transition — they silently do nothing. Safe to call repeatedly / in any
+order / from wired-up UI buttons without state guards. Genuine runtime errors (bad file, socket,
+decode) still surface via `ErrorOccurred`. `PlaybackController.RequireState` → `InState` (no side
+effect); `ReceivePipeline` gained early-return guards in `Connect`/`Disconnect`/`Pause`/`Resume`.
+Guarded by `ControlMethods_AreSafeToCallRepeatedlyAndInAnyOrder_WithoutErrors` in both test suites.
+
+### Also: `ReceiverLib.WinForms` — cached `Bitmap` bridge
+
+New project `Receiver/ReceiverLib.WinForms` (`net10.0-windows`, `UseWindowsForms`) keeps
+`System.Drawing` out of the portable core. One public type:
+
+```csharp
+var view = new WinFormsFrameView(receiver);   // dispose before the receiver
+
+receiver.FrameReady += (_, in VideoFrame _) => BeginInvoke(() => panel.Invalidate());
+
+protected override void OnPaint(PaintEventArgs e)
+{
+    if (view.TryGetBitmap(out Bitmap bmp))
+        e.Graphics.DrawImage(bmp, ClientRectangle);   // or: view.Paint(e.Graphics, ClientRectangle);
+}
+```
+
+It wraps each `FrameBufferPool` buffer in a reused `Format32bppPArgb` `Bitmap` once (rebuilds on a
+resolution change), maps `TryAcquireFrame`'s `BufferIndex` to the matching cached bitmap, and
+returns the last-good bitmap when nothing new decoded. Zero per-frame copy/alloc, no locking in the
+bridge (the pool handles the hand-off). Tests: `ReceiverLib.WinForms.Tests` (6).
+
+**Developer step (manual):** add a `ProjectReference` from `WinFormsReceiver` to
+`Receiver/ReceiverLib.WinForms/ReceiverLib.WinForms.csproj` (it transitively brings `ReceiverLib`
++ `Protocol`). The app already runs `net10.0-windows` so no TFM change.
+
+### Next
+
+Simulated network conditions on the UDP path (configurable latency + loss), for the demo.
+
+## Earlier this session: zero-copy presentation path in ReceiverLib — DONE
+
+The WinForms receiver will draw frames with a single `Graphics.DrawImage` and **no per-frame copy**.
+For that the decoder's output buffers must be (a) stable in memory so the UI can wrap each one in a
+GDI+ `Bitmap` exactly once, and (b) safe to draw while the decoder keeps running. So `ReceiverLib`
+grows a **triple-buffer swap chain** that the decoder scales directly into and the UI pulls from.
+
+### API added (all in `ReceiverLib`)
+
+- **`FrameBufferPool`** (public) — the rotating pool, sized to the stream (`Width`/`Height`/`Stride`,
+  packed BGRA32). `Count` buffers (3), each at a stable `BufferAddress(i)`. Consumer side:
+  `bool TryAcquireFrame(out RentedFrame)` — hands out the newest decoded frame; `false` when nothing
+  new since the last call. Counters: `PresentedCount`, `SupersededCount`. `Generation` bumps only
+  when the buffers are reallocated (resolution change) — the UI rebuilds its wrappers then.
+  Internally: producer owns `_writeSlot`, consumer owns `_displaySlot`, `_pendingSlot` is the
+  hand-off; only index swaps are locked, pixels are never copied or locked; the decoder never blocks
+  on the UI (a slow UI just means decoded frames are superseded).
+- **`RentedFrame`** (public readonly struct) — `BufferIndex` (which pool buffer to draw),
+  `SequenceNumber`, `Timestamp`.
+- **`FrameTarget`** (internal readonly struct) — `{ Scan0, Stride }`, the decoder's write destination.
+- **`IVideoDecoder.OutputBuffers`** — `FrameBufferPool?`, null until `Configure`.
+- **`VideoReceiver.FrameBuffers`** / **`VideoReceiver.TryAcquireFrame(out RentedFrame)`** — the UI's
+  entry points. `FrameBuffers` is non-null from the `Buffering` state onward.
+- **`ReceiverStatistics.PresentedFps`** — frames actually handed to the UI per second.
+
+### Changed
+
+- **`FFmpegVideoDecoder`** — the private 3-array ring becomes a `FrameBufferPool`. `sws_scale` writes
+  straight into `pool.CurrentWriteTarget()`, then `pool.Commit(seq, ts)`. `TryDecode` still returns
+  the borrowed `VideoFrame` (now a view over the just-committed pool buffer) so the legacy
+  `FrameReady` path and `ReceiverCli` are unchanged. Pool is kept across a same-resolution
+  reconfigure; replaced (Generation++) on a resolution change; released on `Dispose`.
+- **`ReceivePipeline`** — exposes `FrameBuffers` / `TryAcquireFrame`; `EmitStatistics` fills
+  `PresentedFps` from `pool.PresentedCount`. Pacing/`FrameReady`/state logic unchanged (the
+  MaxLateness gate still gates the push event; the swap chain is the real drop mechanism for the
+  pull path).
+
+### The developer's WinForms side (not done here)
+
+1. On `StateChanged` into `Playing` (or when `FrameBuffers.Generation` changes): build `Count`
+   `Bitmap`s, `new Bitmap(pool.Width, pool.Height, pool.Stride, PixelFormat.Format32bppRgb,
+   pool.BufferAddress(i))`. Dispose the old ones first. Dispose all of them before disposing the
+   `VideoReceiver` — the addresses are only valid while it lives.
+2. `FrameReady` handler → `BeginInvoke(() => panel.Invalidate())` (just the invalidate).
+3. `OnPaint`: `if (receiver.TryAcquireFrame(out var f)) _current = _wrappers[f.BufferIndex];`
+   then `if (_current != null) e.Graphics.DrawImage(_current, dest);` — one draw call, zero copy.
+4. `DoubleBuffered = true` on the panel for flicker-free compositing.
+
+### Verify
+
+```powershell
+dotnet build WinFormsVideo.slnx
+dotnet test  Receiver/ReceiverLib.Tests/ReceiverLib.Tests.csproj
+dotnet test  Sender/SenderLib.Tests/SenderLib.Tests.csproj
+```
+
+## Earlier: UDP transport (alongside TCP) — DONE
 
 The stream can go over UDP: connectionless, unreliable, **a frame with a missing or out-of-order
 fragment is dropped whole** (no retransmit, no reorder buffer). TCP stays the default; pick per
@@ -131,10 +259,6 @@ freeze / resume = jump-to-live, rolling stats), and raises BGRA frames — prove
    Build the two UIs against the APIs:
    - Sender: file picker, address/port, Start/Pause/Resume/Stop/Restart, a seek slider, a stats panel.
    - Receiver: address/port, Connect/Disconnect, Pause/Resume, a stats panel, and a control that
-     paints `VideoFrame` (BGRA32, stride = width*4). `FrameReady` is `VideoFrameHandler`
-     (`(object? s, in VideoFrame f)`), raised on a background thread; `f.Pixels` is **borrowed** —
-     copy it into a `Bitmap` *inside the handler* (e.g. `new Bitmap(w,h,stride,Format32bppArgb, ptr)`
-     from a pinned span, then `bmp.Clone()` or blit) before it returns, then marshal the Bitmap to
-     the UI thread.
+     paints frames via the zero-copy `FrameBuffers` / `TryAcquireFrame` path (see "Now" above).
 2. Optional cleanups: extract `IPlaybackClock`/`PlaybackClock` to a shared project; add a
-   `dotnet run` smoke of the two apps together; UDP transport behind `IVideoStreamServer`.
+   `dotnet run` smoke of the two apps together.

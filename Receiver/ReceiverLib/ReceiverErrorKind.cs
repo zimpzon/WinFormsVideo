@@ -9,7 +9,7 @@ public enum ReceiverErrorKind
     /// <summary>The connection dropped mid-stream.</summary>
     ConnectionLost,
 
-    /// <summary>The bytes on the wire did not match <see cref="Protocol.StreamProtocol"/>.</summary>
+    /// <summary>The bytes on the wire did not match <see cref="Protocol.DatagramProtocol"/>.</summary>
     ProtocolError,
 
     /// <summary>The decoder failed on a received packet.</summary>

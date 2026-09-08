@@ -50,6 +50,11 @@ internal sealed class FakeVideoClient : IVideoClient
             throw ThrowOnConnect;
         }
 
+        lock (_gate)
+        {
+            _ended = false; // re-arm so the same fake can be reconnected
+        }
+
         IsConnected = true;
         Connected?.Invoke(this, EventArgs.Empty);
     }

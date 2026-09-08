@@ -83,6 +83,44 @@ public class VideoReceiverTests
     }
 
     [Fact]
+    public void Connect_ExposesFrameBuffers_AndTryAcquireFrame_HandsOutTheLatestFrame()
+    {
+        var configuration = new ReceiverConfiguration { SenderPort = 1 };
+        var client = new FakeVideoClient(packets: new[]
+        {
+            new ReceivedPacket(0, TimeSpan.Zero, true, new byte[8]),
+            new ReceivedPacket(1, TimeSpan.FromMilliseconds(40), true, new byte[8]),
+            new ReceivedPacket(2, TimeSpan.FromMilliseconds(80), true, new byte[8]),
+        });
+        var pipeline = new ReceivePipeline(configuration, client, new FakeVideoDecoder(), new FakePlaybackClock());
+        using var receiver = new VideoReceiver(pipeline);
+
+        Assert.Null(receiver.FrameBuffers); // nothing before connect
+
+        receiver.Connect();
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < deadline && receiver.State != ReceiverState.Stopped)
+        {
+            Thread.Sleep(5);
+        }
+
+        Assert.Equal(ReceiverState.Stopped, receiver.State);
+
+        FrameBufferPool? buffers = receiver.FrameBuffers;
+        Assert.NotNull(buffers);
+        Assert.Equal(3, buffers!.Count);
+        Assert.Equal(320, buffers.Width); // FakeVideoClient's default StreamInfo
+        Assert.Equal(320 * 4, buffers.Stride);
+
+        Assert.True(receiver.TryAcquireFrame(out RentedFrame frame));
+        Assert.Equal(2, frame.SequenceNumber); // the most recent decoded frame
+        Assert.InRange(frame.BufferIndex, 0, 2);
+
+        Assert.False(receiver.TryAcquireFrame(out _)); // nothing newer
+    }
+
+    [Fact]
     public void ConnectionFailure_BubblesErrorAndFaults()
     {
         var client = new FakeVideoClient { ThrowOnConnect = new System.Net.Sockets.SocketException(10061) };

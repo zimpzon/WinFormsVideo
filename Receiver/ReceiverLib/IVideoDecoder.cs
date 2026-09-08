@@ -11,12 +11,19 @@ public interface IVideoDecoder : IDisposable
     /// <summary>Codec short name (e.g. "h264"). Valid after <see cref="Configure"/>.</summary>
     string CodecName { get; }
 
+    /// <summary>
+    /// The rotating pool the decoder scales frames into, for the frontend's zero-copy display path.
+    /// Null until <see cref="Configure"/>. See <see cref="FrameBufferPool"/> for the lifetime rules.
+    /// </summary>
+    FrameBufferPool? OutputBuffers { get; }
+
     /// <summary>Prepare the decoder from the handshake's <see cref="StreamInfo"/>. Called once.</summary>
     void Configure(StreamInfo info);
 
     /// <summary>
     /// Feed one packet. Returns true and a frame when the decoder produced output for this packet.
-    /// The returned <see cref="VideoFrame.Pixels"/> is borrowed and only valid until the next
+    /// The frame is also published to <see cref="OutputBuffers"/> for the pull path. The returned
+    /// <see cref="VideoFrame.Pixels"/> is borrowed and only valid until the next
     /// <see cref="TryDecode"/> call.
     /// </summary>
     bool TryDecode(in ReceivedPacket packet, out VideoFrame frame);

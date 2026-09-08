@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Protocol;
 
-/// <summary>Kind of a UDP datagram (byte 5, after <see cref="StreamProtocol.Magic"/> + version).</summary>
+/// <summary>Kind of a UDP datagram (byte 5, after <see cref="DatagramProtocol.Magic"/> + version).</summary>
 public enum DatagramType : byte
 {
     /// <summary>Receiver → sender: "send me the stream". Also used as a keepalive.</summary>
@@ -65,12 +65,21 @@ public readonly struct FragmentHeader
 }
 
 /// <summary>
-/// Wire format for the UDP transport. All datagrams start with <see cref="StreamProtocol.Magic"/> (4) +
-/// <see cref="StreamProtocol.Version"/> (1) + a <see cref="DatagramType"/> (1). Everything is
-/// little-endian and every method is span-based / allocation-free.
+/// Wire format for the UDP transport. All datagrams start with <see cref="Magic"/> (4) +
+/// <see cref="Version"/> (1) + a <see cref="DatagramType"/> (1). Everything is little-endian and
+/// every method is span-based / allocation-free.
 /// </summary>
 public static class DatagramProtocol
 {
+    /// <summary>Magic bytes at the start of every datagram ("WFV1").</summary>
+    public static ReadOnlySpan<byte> Magic => "WFV1"u8;
+
+    /// <summary>Protocol version byte.</summary>
+    public const byte Version = 1;
+
+    /// <summary>Upper bound on a reassembled frame payload, so a receiver can reject garbage.</summary>
+    public const int MaxPayloadLength = 8 * 1024 * 1024;
+
     /// <summary>Bytes before the type-specific body: magic (4) + version (1) + type (1).</summary>
     public const int PrefixSize = 6;
 
@@ -141,8 +150,8 @@ public static class DatagramProtocol
     {
         type = default;
         if (datagram.Length < PrefixSize ||
-            !datagram[..4].SequenceEqual(StreamProtocol.Magic) ||
-            datagram[4] != StreamProtocol.Version)
+            !datagram[..4].SequenceEqual(Magic) ||
+            datagram[4] != Version)
         {
             return false;
         }
@@ -179,7 +188,7 @@ public static class DatagramProtocol
         int fragmentCount = BinaryPrimitives.ReadUInt16LittleEndian(h.Slice(23, 2));
         int fragmentLength = BinaryPrimitives.ReadUInt16LittleEndian(h.Slice(25, 2));
 
-        if (totalLength < 0 || totalLength > StreamProtocol.MaxPayloadLength ||
+        if (totalLength < 0 || totalLength > MaxPayloadLength ||
             fragmentCount == 0 || fragmentIndex >= fragmentCount ||
             fragmentLength > MaxFragmentPayload ||
             datagram.Length < PrefixSize + FragmentHeaderSize + fragmentLength)
@@ -214,8 +223,8 @@ public static class DatagramProtocol
 
     private static void WritePrefix(Span<byte> destination, DatagramType type)
     {
-        StreamProtocol.Magic.CopyTo(destination);
-        destination[4] = StreamProtocol.Version;
+        Magic.CopyTo(destination);
+        destination[4] = Version;
         destination[5] = (byte)type;
     }
 }

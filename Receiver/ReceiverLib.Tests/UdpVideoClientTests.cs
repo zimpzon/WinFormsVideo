@@ -132,7 +132,6 @@ public class UdpVideoClientTests
         {
             SenderAddress = "127.0.0.1",
             SenderPort = sender.Port,
-            Transport = TransportKind.Udp,
         });
         client.Connect();
         return client;

@@ -1,16 +1,14 @@
 using System.Globalization;
-using Protocol;
 using SenderLib;
 
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture; // stable number formatting in the log
 
 // Streams a video file using SenderLib and prints progress.
-// Usage: SenderCli [video-file] [port] [listen-address] [--udp]
+// Usage: SenderCli [video-file] [port] [listen-address]
 // A reference for the WinForms sender — the flow is: configure -> new VideoSender ->
 // subscribe to events -> Open -> Start -> watch Statistics/State.
 
 string[] positional = args.Where(a => !a.StartsWith('-')).ToArray();
-bool udp = args.Any(a => a is "--udp" or "-u");
 
 string path = positional.Length >= 1 ? positional[0] : @"c:\temp\mfpallytime.mp4";
 int port = positional.Length >= 2 ? int.Parse(positional[1]) : 9000;
@@ -20,7 +18,6 @@ using var sender = new VideoSender(new SenderConfiguration
 {
     ListenAddress = address,
     ListenPort = port,
-    Transport = udp ? TransportKind.Udp : TransportKind.Tcp,
 });
 
 sender.StateChanged += (_, e) => Console.WriteLine($"[state]    {e.OldState} -> {e.NewState}");
@@ -42,7 +39,7 @@ if (sender.State == PlaybackState.Faulted)
 VideoInfo info = sender.VideoInfo!;
 Console.WriteLine($"Opened     {info.Width}x{info.Height} {info.CodecName} {info.FrameRate:0.##}fps  " +
                   $"duration {info.Duration:hh\\:mm\\:ss}  ({info.TotalFrames} frames)");
-Console.WriteLine($"Listening  {address}:{port} [{(udp ? "UDP" : "TCP")}]  (streaming continues with or without receivers)");
+Console.WriteLine($"Listening  {address}:{port} [UDP]  (streaming continues with or without receivers)");
 
 sender.Start();
 

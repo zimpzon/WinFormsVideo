@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="ReceiverLib.Tests" />
+    <InternalsVisibleTo Include="ReceiverLib.WinForms.Tests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,8 +3,8 @@ using Protocol;
 namespace ReceiverLib;
 
 /// <summary>
-/// Connects to the sender's stream server, reads the <see cref="StreamProtocol"/> handshake
-/// and then the framed packet stream. The concrete implementation (TCP) is an internal detail; the
+/// Connects to the sender's stream server, reads the <see cref="DatagramProtocol"/> handshake
+/// and then the packet stream. The concrete implementation (UDP) is an internal detail; the
 /// pipeline depends only on this abstraction so it can be faked in tests.
 /// </summary>
 public interface IVideoClient : IDisposable

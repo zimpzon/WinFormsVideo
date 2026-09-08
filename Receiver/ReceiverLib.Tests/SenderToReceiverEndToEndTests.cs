@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using Protocol;
 using ReceiverLib;
 using SenderLib;
 
@@ -9,7 +8,7 @@ namespace ReceiverLib.Tests;
 
 /// <summary>
 /// The whole pipeline: a real <see cref="VideoSender"/> streams a real file to a real
-/// <see cref="VideoReceiver"/>, which decodes it to BGRA frames — over each transport.
+/// <see cref="VideoReceiver"/>, which decodes it to BGRA frames — over UDP.
 /// </summary>
 public class SenderToReceiverEndToEndTests
 {
@@ -22,10 +21,8 @@ public class SenderToReceiverEndToEndTests
         return port;
     }
 
-    [Theory]
-    [InlineData(TransportKind.Tcp)]
-    [InlineData(TransportKind.Udp)]
-    public void Sender_StreamsAFile_ReceiverDecodesItToFrames(TransportKind transport)
+    [Fact]
+    public void Sender_StreamsAFile_ReceiverDecodesItToFrames()
     {
         int port = FreePort();
         string videoPath = DecoderTestData.WriteTempMp4();
@@ -36,13 +33,11 @@ public class SenderToReceiverEndToEndTests
             {
                 ListenAddress = "127.0.0.1",
                 ListenPort = port,
-                Transport = transport,
             });
             using var receiver = new VideoReceiver(new ReceiverConfiguration
             {
                 SenderAddress = "127.0.0.1",
                 SenderPort = port,
-                Transport = transport,
             });
 
             var frames = new ConcurrentQueue<VideoFrame>();

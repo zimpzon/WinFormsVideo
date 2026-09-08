@@ -180,7 +180,7 @@ public class PlaybackControllerTests
     }
 
     [Fact]
-    public void Start_BeforeOpen_IsRejectedAndStaysIdle()
+    public void Start_BeforeOpen_IsANoOp()
     {
         using var controller = Create(out _, out _, out _);
         SenderError? reported = null;
@@ -189,8 +189,41 @@ public class PlaybackControllerTests
         controller.Start();
 
         Assert.Equal(PlaybackState.Idle, controller.State);
-        Assert.NotNull(reported);
-        Assert.Equal(SenderErrorKind.ConfigurationError, reported!.Kind);
+        Assert.Null(reported); // no error — a control method in the wrong state is a silent no-op
+    }
+
+    [Fact]
+    public void ControlMethods_AreSafeToCallRepeatedlyAndInAnyOrder_WithoutErrors()
+    {
+        using var controller = Create(
+            out _, out _, out var clock,
+            frames: new[] { Frame(0, key: true), Frame(1, key: true) });
+        var errors = new ConcurrentQueue<SenderError>();
+        controller.ErrorOccurred += (_, e) => errors.Enqueue(e.Error);
+
+        // wrong-state calls before Open — all no-ops
+        controller.Start();
+        controller.Pause();
+        controller.Resume();
+        controller.Stop();
+        controller.Restart();
+        controller.Seek(TimeSpan.FromSeconds(1));
+
+        controller.Open("m.mp4");
+        controller.Open("m.mp4");   // re-open
+
+        controller.Start();
+        controller.Start();          // redundant
+        controller.Pause();
+        controller.Pause();          // redundant
+        controller.Resume();
+        controller.Resume();         // redundant
+        controller.Stop();
+        controller.Stop();           // redundant
+        controller.Close();
+        controller.Close();          // redundant
+
+        Assert.Empty(errors);
     }
 
     [Fact]
@@ -228,36 +261,6 @@ public class PlaybackControllerTests
         Assert.Null(source.OpenedPath);
     }
 
-    [Fact]
-    public void Integration_RealTcpServer_DeliversTheScriptedFramesToALoopbackClient()
-    {
-        var config = new SenderConfiguration { ListenAddress = "127.0.0.1", ListenPort = 0 };
-        var server = new TcpVideoStreamServer(config);
-        var source = new FakeVideoSource(frames: new[]
-        {
-            new EncodedFrame(TimeSpan.Zero, isKeyFrame: true, new byte[] { 0x01 }),
-            new EncodedFrame(TimeSpan.FromMilliseconds(10), isKeyFrame: true, new byte[] { 0x02 }),
-            new EncodedFrame(TimeSpan.FromMilliseconds(20), isKeyFrame: true, new byte[] { 0x03 }),
-        });
-        using var controller = new PlaybackController(config, source, server, new PlaybackClock());
-
-        controller.Open("clip");
-
-        using var client = new System.Net.Sockets.TcpClient();
-        client.Connect(server.LocalEndPoint!.Address, server.LocalEndPoint!.Port);
-        Assert.True(SpinUntil(() => controller.ReceiverCount == 1));
-
-        var stream = client.GetStream();
-        TcpTestIo.ReadHandshake(stream);
-
-        controller.Start();
-
-        var received = new List<byte>();
-        for (int i = 0; i < 3; i++)
-        {
-            received.Add(TcpTestIo.ReadFrame(stream).Payload[0]);
-        }
-
-        Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, received);
-    }
+    // Real-transport integration coverage lives in UdpVideoStreamServerTests (the server against a
+    // loopback socket) and ReceiverLib.Tests/SenderToReceiverEndToEndTests (the whole real pipeline).
 }

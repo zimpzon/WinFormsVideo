@@ -120,8 +120,15 @@ public class UdpVideoStreamServerTests
         throw new TimeoutException("no complete frame");
     }
 
+    private static byte[] Bytes(byte fill, int size)
+    {
+        var data = new byte[size];
+        Array.Fill(data, fill);
+        return data;
+    }
+
     private static EncodedFrame Frame(double seconds, bool key, byte fill, int size) =>
-        new(TimeSpan.FromSeconds(seconds), key, TcpTestIo.Bytes(fill, size));
+        new(TimeSpan.FromSeconds(seconds), key, Bytes(fill, size));
 
     [Fact]
     public void Subscribe_GetsStreamInfo_ThenBroadcastsReassembleByteExact()
@@ -231,7 +238,7 @@ public class UdpVideoStreamServerTests
         }) { IsBackground = true };
         drain.Start();
 
-        var frame = new EncodedFrame(TimeSpan.FromMilliseconds(33), false, TcpTestIo.Bytes(0x11, 1000));
+        var frame = new EncodedFrame(TimeSpan.FromMilliseconds(33), false, Bytes(0x11, 1000));
 
         for (int i = 0; i < 5; i++)
         {

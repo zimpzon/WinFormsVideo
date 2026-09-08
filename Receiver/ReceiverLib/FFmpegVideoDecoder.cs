@@ -15,14 +15,13 @@ namespace ReceiverLib;
 /// ALL FFmpeg / native interop belongs in this file. It builds a decoder from the handshake
 /// <see cref="StreamInfo"/> (codec id + <c>extradata</c>), decodes the sender's raw (AVCC) packets
 /// and scales each frame to <see cref="FramePixelFormat.Bgra32"/>. No per-frame allocation: the
-/// packet is a borrowed pointer, the sws plane/stride arrays are reused, and the output rotates a
-/// small ring of buffers (so <see cref="VideoFrame.Pixels"/> is only valid for the callback).
+/// packet is a borrowed pointer, the sws plane/stride arrays are reused, and the output is scaled
+/// straight into a <see cref="FrameBufferPool"/> (a triple buffer), so <see cref="VideoFrame.Pixels"/>
+/// is only valid for the callback while the pool also feeds the frontend's zero-copy pull path.
 /// Assumes one packet produces one frame (true for the sender's zero-latency / no-B-frame stream).
 /// </remarks>
 internal sealed unsafe class FFmpegVideoDecoder : IVideoDecoder
 {
-    private const int RingSize = 3;
-
     private CodecContext? _codecContext;
     private Packet? _packet;
     private Frame? _decoded;
@@ -33,13 +32,13 @@ internal sealed unsafe class FFmpegVideoDecoder : IVideoDecoder
     private readonly byte*[] _dstPlanes = new byte*[4];
     private readonly int[] _dstStrides = new int[4];
 
-    private byte[][] _ring = Array.Empty<byte[]>();
-    private int _ringIndex;
-    private int _frameSize;
+    private FrameBufferPool? _buffers;
     private int _width;
     private int _height;
 
     public string CodecName { get; private set; } = string.Empty;
+
+    public FrameBufferPool? OutputBuffers => _buffers;
 
     public void Configure(StreamInfo info)
     {
@@ -80,24 +79,25 @@ internal sealed unsafe class FFmpegVideoDecoder : IVideoDecoder
         CodecName = codec.Name;
         _width = info.Width;
         _height = info.Height;
-        _frameSize = info.Width * info.Height * 4;
         _packet = new Packet();
         _decoded = new Frame();
 
-        _ring = new byte[RingSize][];
-        for (int i = 0; i < RingSize; i++)
+        // Keep the pool (and its stable buffer addresses) across a same-resolution reconfigure so
+        // the frontend's Bitmap wrappers survive a reconnect; replace it on a resolution change.
+        if (_buffers is null || _buffers.Width != _width || _buffers.Height != _height)
         {
-            _ring[i] = new byte[_frameSize];
+            int generation = (_buffers?.Generation ?? -1) + 1;
+            _buffers = new FrameBufferPool(_width, _height) { Generation = generation };
         }
 
-        _ringIndex = 0;
-        _dstStrides[0] = info.Width * 4;
+        _dstStrides[0] = _buffers.Stride;
     }
 
     public bool TryDecode(in ReceivedPacket packet, out VideoFrame frame)
     {
         frame = default;
         CodecContext context = _codecContext ?? throw new InvalidOperationException("Decoder is not configured.");
+        FrameBufferPool buffers = _buffers ?? throw new InvalidOperationException("Decoder is not configured.");
 
         ReadOnlySpan<byte> data = packet.Data.Span;
         try
@@ -136,21 +136,23 @@ internal sealed unsafe class FFmpegVideoDecoder : IVideoDecoder
                 _srcStrides[i] = decoded.Linesize[i];
             }
 
-            byte[] output = _ring[_ringIndex];
-            _ringIndex = (_ringIndex + 1) % RingSize;
+            // Scale straight into the pool's current write buffer — no intermediate copy — then
+            // publish it. The managed view is captured before Commit advances the write slot.
+            FrameTarget target = buffers.CurrentWriteTarget();
+            ReadOnlyMemory<byte> output = buffers.CurrentWriteMemory();
 
-            fixed (byte* dst = output)
-            {
-                _dstPlanes[0] = dst;
-                sws_scale(_sws, _srcPlanes, _srcStrides, 0, decoded.Height, _dstPlanes, _dstStrides);
-            }
+            _dstPlanes[0] = (byte*)target.Scan0;
+            _dstStrides[0] = target.Stride;
+            sws_scale(_sws, _srcPlanes, _srcStrides, 0, decoded.Height, _dstPlanes, _dstStrides);
+
+            buffers.Commit(packet.SequenceNumber, packet.Timestamp);
 
             frame = new VideoFrame(
                 _width,
                 _height,
-                _width * 4,
+                target.Stride,
                 FramePixelFormat.Bgra32,
-                output.AsMemory(0, _frameSize),
+                output,
                 packet.Timestamp);
             return true;
         }
@@ -168,7 +170,11 @@ internal sealed unsafe class FFmpegVideoDecoder : IVideoDecoder
         }
     }
 
-    public void Dispose() => Reset();
+    public void Dispose()
+    {
+        Reset();
+        _buffers = null; // released here, not on reconfigure — the frontend's wrappers depend on it
+    }
 
     private void Reset()
     {
@@ -186,8 +192,6 @@ internal sealed unsafe class FFmpegVideoDecoder : IVideoDecoder
         _packet = null;
         _codecContext?.Dispose(); // also frees the extradata we handed it
         _codecContext = null;
-        _ring = Array.Empty<byte[]>();
-        _ringIndex = 0;
     }
 
     private static void SetExtradata(CodecContext context, ReadOnlySpan<byte> extradata)

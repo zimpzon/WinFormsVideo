@@ -1,16 +1,14 @@
 using System.Globalization;
-using Protocol;
 using ReceiverLib;
 
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture; // stable number formatting in the log
 
 // Connects to a SenderLib stream, decodes it, and prints progress.
-// Usage: ReceiverCli [sender-address] [port] [--udp]
+// Usage: ReceiverCli [sender-address] [port]
 // A reference for the WinForms receiver — the flow is: configure -> new VideoReceiver ->
 // subscribe to events -> Connect -> watch Statistics/State, copy VideoFrame.Pixels in FrameReady.
 
 string[] positional = args.Where(a => !a.StartsWith('-')).ToArray();
-bool udp = args.Any(a => a is "--udp" or "-u");
 
 string address = positional.Length >= 1 ? positional[0] : "127.0.0.1";
 int port = positional.Length >= 2 ? int.Parse(positional[1]) : 9000;
@@ -19,7 +17,6 @@ using var receiver = new VideoReceiver(new ReceiverConfiguration
 {
     SenderAddress = address,
     SenderPort = port,
-    Transport = udp ? TransportKind.Udp : TransportKind.Tcp,
 });
 
 long framesShown = 0;
@@ -37,7 +34,7 @@ receiver.FrameReady += (object? _, in VideoFrame f) =>
 var finished = new ManualResetEventSlim(false);
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; Console.WriteLine("[stop] Ctrl+C"); finished.Set(); };
 
-Console.WriteLine($"Connecting to {address}:{port} [{(udp ? "UDP" : "TCP")}] ...");
+Console.WriteLine($"Connecting to {address}:{port} [UDP] ...");
 receiver.Connect();
 
 while (true)

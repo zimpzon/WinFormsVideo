@@ -127,9 +127,9 @@ internal sealed class PlaybackController : IDisposable
 
     public void Start()
     {
-        if (!RequireState(nameof(Start), PlaybackState.Ready, PlaybackState.Paused, PlaybackState.Stopped, PlaybackState.Ended))
+        if (!InState(PlaybackState.Ready, PlaybackState.Paused, PlaybackState.Stopped, PlaybackState.Ended))
         {
-            return;
+            return; // already playing, not opened yet, faulted — nothing to do
         }
 
         if (State is PlaybackState.Stopped or PlaybackState.Ended)
@@ -144,9 +144,9 @@ internal sealed class PlaybackController : IDisposable
 
     public void Pause()
     {
-        if (!RequireState(nameof(Pause), PlaybackState.Playing))
+        if (!InState(PlaybackState.Playing))
         {
-            return;
+            return; // not playing — nothing to pause
         }
 
         _clock.Pause();
@@ -156,9 +156,9 @@ internal sealed class PlaybackController : IDisposable
 
     public void Resume()
     {
-        if (!RequireState(nameof(Resume), PlaybackState.Paused))
+        if (!InState(PlaybackState.Paused))
         {
-            return;
+            return; // not paused — nothing to resume
         }
 
         _clock.Start();
@@ -168,9 +168,9 @@ internal sealed class PlaybackController : IDisposable
 
     public void Stop()
     {
-        if (!RequireState(nameof(Stop), PlaybackState.Playing, PlaybackState.Paused, PlaybackState.Ended))
+        if (!InState(PlaybackState.Playing, PlaybackState.Paused, PlaybackState.Ended))
         {
-            return;
+            return; // already stopped, or never started
         }
 
         SetState(PlaybackState.Stopped);
@@ -179,15 +179,14 @@ internal sealed class PlaybackController : IDisposable
 
     public void Restart()
     {
-        if (!RequireState(
-            nameof(Restart),
+        if (!InState(
             PlaybackState.Ready,
             PlaybackState.Playing,
             PlaybackState.Paused,
             PlaybackState.Stopped,
             PlaybackState.Ended))
         {
-            return;
+            return; // no video open
         }
 
         _clock.Start();
@@ -197,15 +196,14 @@ internal sealed class PlaybackController : IDisposable
 
     public void Seek(TimeSpan position)
     {
-        if (!RequireState(
-            nameof(Seek),
+        if (!InState(
             PlaybackState.Ready,
             PlaybackState.Playing,
             PlaybackState.Paused,
             PlaybackState.Stopped,
             PlaybackState.Ended))
         {
-            return;
+            return; // no video open
         }
 
         Enqueue(PumpCommand.Seek(position < TimeSpan.Zero ? TimeSpan.Zero : position));
@@ -478,7 +476,12 @@ internal sealed class PlaybackController : IDisposable
         _wake.Set();
     }
 
-    private bool RequireState(string operation, params ReadOnlySpan<PlaybackState> allowed)
+    /// <summary>
+    /// True when the current state is one of <paramref name="allowed"/>. A control method whose
+    /// state does not allow it is a silent no-op — calling Start/Pause/Resume/Stop/Restart/Seek in
+    /// the "wrong" state (or repeatedly) does nothing rather than raising an error.
+    /// </summary>
+    private bool InState(params ReadOnlySpan<PlaybackState> allowed)
     {
         if (_disposed)
         {
@@ -494,9 +497,6 @@ internal sealed class PlaybackController : IDisposable
             }
         }
 
-        RaiseError(new SenderError(
-            SenderErrorKind.ConfigurationError,
-            $"Cannot {operation} while playback state is {current}."));
         return false;
     }
 

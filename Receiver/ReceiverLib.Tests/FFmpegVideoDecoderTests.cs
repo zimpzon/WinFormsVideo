@@ -82,6 +82,57 @@ public class FFmpegVideoDecoderTests
     }
 
     [Fact]
+    public void OutputBuffers_ArePublished_AndAcquirableWithoutCopying()
+    {
+        using var decoder = new FFmpegVideoDecoder();
+        Assert.Null(decoder.OutputBuffers);
+
+        decoder.Configure(DecoderTestData.StreamInfo);
+
+        FrameBufferPool? pool = decoder.OutputBuffers;
+        Assert.NotNull(pool);
+        Assert.Equal(DecoderTestData.Width, pool!.Width);
+        Assert.Equal(DecoderTestData.Height, pool.Height);
+        Assert.Equal(3, pool.Count);
+
+        long acquired = 0;
+        foreach (ReceivedPacket packet in DecoderTestData.Packets)
+        {
+            if (!decoder.TryDecode(packet, out VideoFrame frame) || !pool.TryAcquireFrame(out RentedFrame rented))
+            {
+                continue;
+            }
+
+            // The rented buffer is the very memory the decoder scaled into — no copy in between.
+            Assert.True(System.Runtime.InteropServices.MemoryMarshal.TryGetArray(frame.Pixels, out ArraySegment<byte> segment));
+            IntPtr framePixelsAddress = System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(
+                segment.Array!, segment.Offset);
+            Assert.Equal(pool.BufferAddress(rented.BufferIndex), framePixelsAddress);
+            Assert.Equal(frame.Timestamp, rented.Timestamp);
+            acquired++;
+        }
+
+        Assert.True(acquired > 0);
+        Assert.Equal(acquired, pool.PresentedCount);
+    }
+
+    [Fact]
+    public void Configure_AtTheSameResolution_KeepsTheSameBuffers()
+    {
+        using var decoder = new FFmpegVideoDecoder();
+        decoder.Configure(DecoderTestData.StreamInfo);
+        FrameBufferPool first = decoder.OutputBuffers!;
+        IntPtr firstAddress = first.BufferAddress(0);
+        int firstGeneration = first.Generation;
+
+        decoder.Configure(DecoderTestData.StreamInfo);
+
+        Assert.Same(first, decoder.OutputBuffers);
+        Assert.Equal(firstAddress, decoder.OutputBuffers!.BufferAddress(0));
+        Assert.Equal(firstGeneration, decoder.OutputBuffers.Generation);
+    }
+
+    [Fact]
     public void Configure_WithAnUnknownCodec_Throws()
     {
         using var decoder = new FFmpegVideoDecoder();

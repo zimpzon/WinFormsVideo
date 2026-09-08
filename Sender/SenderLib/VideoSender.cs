@@ -1,9 +1,7 @@
-using Protocol;
-
 namespace SenderLib;
 
 /// <summary>
-/// Public entry point for the sender. Opens a video file and streams it over TCP to
+/// Public entry point for the sender. Opens a video file and streams it over UDP to
 /// zero or more receivers, respecting the source frame timing. This type is a thin
 /// facade over <see cref="PlaybackController"/>; all real work happens off the caller's
 /// thread and this class never touches WinForms.
@@ -12,20 +10,15 @@ public sealed class VideoSender : IDisposable
 {
     private readonly PlaybackController _controller;
 
-    /// <summary>Create a sender with the default FFmpeg pipeline over the configured transport.</summary>
+    /// <summary>Create a sender with the default FFmpeg + UDP pipeline.</summary>
     public VideoSender(SenderConfiguration configuration)
         : this(new PlaybackController(
             configuration,
             new FFmpegVideoSource(),
-            CreateServer(configuration),
+            new UdpVideoStreamServer(configuration),
             new PlaybackClock()))
     {
     }
-
-    private static IVideoStreamServer CreateServer(SenderConfiguration configuration) =>
-        configuration.Transport == TransportKind.Udp
-            ? new UdpVideoStreamServer(configuration)
-            : new TcpVideoStreamServer(configuration);
 
     /// <summary>Create a sender around a pre-built pipeline. Used by tests to inject fakes.</summary>
     internal VideoSender(PlaybackController controller)
@@ -69,28 +62,37 @@ public sealed class VideoSender : IDisposable
 
     public event EventHandler? EndOfVideoReached;
 
-    /// <summary>Open and probe a video file. Does not start streaming.</summary>
+    /// <summary>
+    /// Open and probe a video file. Does not start streaming. Calling it again re-opens (the current
+    /// video, if any, is closed first).
+    /// </summary>
     public void Open(string path) => _controller.Open(path);
 
-    /// <summary>Start the playback clock and begin streaming from the current position.</summary>
+    /// <summary>
+    /// Start the playback clock and begin streaming from the current position. A no-op if already
+    /// playing or if no video is open.
+    /// </summary>
     public void Start() => _controller.Start();
 
-    /// <summary>Pause playback; the stream holds at the current position.</summary>
+    /// <summary>Pause playback; the stream holds at the current position. A no-op unless playing.</summary>
     public void Pause() => _controller.Pause();
 
-    /// <summary>Resume playback after a <see cref="Pause"/>.</summary>
+    /// <summary>Resume playback after a <see cref="Pause"/>. A no-op unless paused.</summary>
     public void Resume() => _controller.Resume();
 
-    /// <summary>Stop playback and reset to the start.</summary>
+    /// <summary>Stop playback and reset to the start. A no-op if already stopped or not started.</summary>
     public void Stop() => _controller.Stop();
 
-    /// <summary>Seek to the beginning and continue playing.</summary>
+    /// <summary>Seek to the beginning and continue playing. A no-op if no video is open.</summary>
     public void Restart() => _controller.Restart();
 
-    /// <summary>Seek to <paramref name="position"/> within the video.</summary>
+    /// <summary>Seek to <paramref name="position"/> within the video. A no-op if no video is open.</summary>
     public void Seek(TimeSpan position) => _controller.Seek(position);
 
-    /// <summary>Close the current video and release the source, keeping the instance usable.</summary>
+    /// <summary>
+    /// Close the current video and release the source, keeping the instance usable. A no-op if
+    /// nothing is open.
+    /// </summary>
     public void Close() => _controller.Close();
 
     public void Dispose() => _controller.Dispose();

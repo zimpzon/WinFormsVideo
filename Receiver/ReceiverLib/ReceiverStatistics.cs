@@ -12,6 +12,12 @@ public sealed class ReceiverStatistics
     /// <summary>Frames successfully decoded per second.</summary>
     public double DecodedFps { get; init; }
 
+    /// <summary>
+    /// Frames actually handed to the frontend for display per second (≤ <see cref="DecodedFps"/>);
+    /// the shortfall is frames the frontend was too slow to pick up before the next one decoded.
+    /// </summary>
+    public double PresentedFps { get; init; }
+
     /// <summary>Frames discarded (dropped in transit, or too late to present).</summary>
     public long DroppedFrames { get; init; }
 
