@@ -28,23 +28,13 @@
         /// </summary>
         private void InitializeComponent()
         {
-            videoPanel = new WinFormsReceiver.Components.VideoPanel();
             labelStatus = new Label();
             btnPlayVideo = new Button();
             labelVideoSize = new Label();
             btnShowLog = new Button();
-            videoPanel.SuspendLayout();
+            videoView1 = new LibVLCSharp.WinForms.VideoView();
+            ((System.ComponentModel.ISupportInitialize)videoView1).BeginInit();
             SuspendLayout();
-            // 
-            // videoPanel
-            // 
-            videoPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            videoPanel.BorderStyle = BorderStyle.Fixed3D;
-            videoPanel.Controls.Add(labelStatus);
-            videoPanel.Location = new Point(12, 12);
-            videoPanel.Name = "videoPanel";
-            videoPanel.Size = new Size(636, 480);
-            videoPanel.TabIndex = 0;
             // 
             // labelStatus
             // 
@@ -63,7 +53,7 @@
             // 
             btnPlayVideo.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnPlayVideo.Font = new Font("Segoe UI Symbol", 20F);
-            btnPlayVideo.Location = new Point(17, 496);
+            btnPlayVideo.Location = new Point(17, 502);
             btnPlayVideo.Name = "btnPlayVideo";
             btnPlayVideo.Size = new Size(64, 32);
             btnPlayVideo.TabIndex = 1;
@@ -76,7 +66,7 @@
             // 
             labelVideoSize.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             labelVideoSize.AutoSize = true;
-            labelVideoSize.Location = new Point(397, 503);
+            labelVideoSize.Location = new Point(397, 509);
             labelVideoSize.Name = "labelVideoSize";
             labelVideoSize.Size = new Size(155, 25);
             labelVideoSize.TabIndex = 4;
@@ -93,32 +83,41 @@
             btnShowLog.UseVisualStyleBackColor = true;
             btnShowLog.Click += btnShowLog_Click;
             // 
+            // videoView1
+            // 
+            videoView1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            videoView1.BackColor = Color.Black;
+            videoView1.Location = new Point(17, 12);
+            videoView1.MediaPlayer = null;
+            videoView1.Name = "videoView1";
+            videoView1.Size = new Size(842, 413);
+            videoView1.TabIndex = 6;
+            videoView1.Text = "videoView1";
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.DarkGray;
-            ClientSize = new Size(1231, 544);
+            ClientSize = new Size(1192, 550);
+            Controls.Add(videoView1);
             Controls.Add(btnShowLog);
             Controls.Add(labelVideoSize);
             Controls.Add(btnPlayVideo);
-            Controls.Add(videoPanel);
             MinimumSize = new Size(1000, 400);
             Name = "MainForm";
             Text = "Form1";
-            FormClosing += MainForm_FormClosing;
-            Resize += MainForm_Resize;
-            videoPanel.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)videoView1).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
 
         #endregion
 
-        private Components.VideoPanel videoPanel;
         private Button btnPlayVideo;
         private Label labelVideoSize;
         private Button btnShowLog;
         private Label labelStatus;
+        private LibVLCSharp.WinForms.VideoView videoView1;
     }
 }

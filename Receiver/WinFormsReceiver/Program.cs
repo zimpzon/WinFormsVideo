@@ -1,3 +1,5 @@
+using WinFormsReceiver.Context;
+
 namespace WinFormsReceiver
 {
     internal static class Program
@@ -7,8 +9,8 @@ namespace WinFormsReceiver
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
+            WinFormsContext.Initialize();
+
             ApplicationConfiguration.Initialize();
             Application.Run(new MainForm());
         }
