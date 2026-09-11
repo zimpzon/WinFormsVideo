@@ -6,8 +6,8 @@ namespace WinFormsReceiver.Context
     {
         public MediaPlayer MediaPlayer => _mediaPlayer;
 
-        private MediaPlayer _mediaPlayer;
-        private LibVLC _libVLC;
+        private readonly MediaPlayer _mediaPlayer;
+        private readonly LibVLC _libVLC;
 
         public Video()
         {
@@ -36,6 +36,11 @@ namespace WinFormsReceiver.Context
                 ":live-caching=0");
 
             _mediaPlayer.Play(media);
+        }
+
+        public void Stop()
+        {
+            _mediaPlayer.Stop();
         }
     }
 }

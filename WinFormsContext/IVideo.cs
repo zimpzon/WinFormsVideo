@@ -6,5 +6,6 @@ namespace WinFormsReceiver.Context
     {
         MediaPlayer MediaPlayer { get; }
         void Play(Uri uri);
+        void Stop();
     }
 }
