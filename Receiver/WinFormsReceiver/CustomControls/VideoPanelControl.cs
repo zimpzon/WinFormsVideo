@@ -1,3 +1,4 @@
+using System.Text;
 using WinFormsReceiver.Context;
 
 namespace WinFormsReceiver.CustomControls
@@ -7,6 +8,7 @@ namespace WinFormsReceiver.CustomControls
         private IWinFormsContext _context = null!;
         private Bitmap? _latestFrame;
         private readonly object _frameLock = new();
+        private readonly StringBuilder _sb = new();
 
         public VideoPanelControl()
         {
@@ -24,10 +26,15 @@ namespace WinFormsReceiver.CustomControls
 
         private void OnFrameReady(Bitmap frame)
         {
-            // Draw your overlay directly onto the frame before copying it out
+            _sb.Clear();
+
+            _sb.AppendLine($"{_context.Video.Stats.Width} x {_context.Video.Stats.Height} @ {_context.Video.Stats.Fps:0.0} fps");
+            _sb.AppendLine($"{_context.Video.Stats.TimePlayed}:0.0");
+
             using (var g = Graphics.FromImage(frame))
             {
-                g.DrawString(DateTime.Now.ToString("HH:mm:ss"), Font, Brushes.Yellow, 10, 10);
+                g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), new Rectangle(5, 5, 300, 80));
+                g.DrawString(_sb.ToString(), Font, Brushes.White, 10, 10);
             }
 
             // 'frame' wraps the Video class's own pinned buffer, which gets overwritten by

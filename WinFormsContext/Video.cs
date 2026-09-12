@@ -13,7 +13,31 @@ namespace WinFormsReceiver.Context
 {
     internal sealed class Video : IVideo, IDisposable
     {
-        public TimeSpan TimePlayed => _stopwatch.Elapsed;
+        /// <summary>
+        /// A snapshot of live playback stats — cheap to read from any thread at any time.
+        /// </summary>
+        public VideoStats Stats
+        {
+            get
+            {
+                double seconds = _stopwatch.Elapsed.TotalSeconds;
+                return new VideoStats(
+                    IsConnected: _isConnected,
+                    Width: _width,
+                    Height: _height,
+                    CodecName: _codecName,
+                    PixelFormat: _pixelFormat,
+                    Fps: seconds > 0 ? _framesDecoded / seconds : 0,
+                    BitRateBps: seconds > 0 ? (long)(_bytesReceived * 8 / seconds) : 0,
+                    FramesDecoded: _framesDecoded,
+                    KeyFramesDecoded: _keyFramesDecoded,
+                    PacketsReceived: _packetsReceived,
+                    BytesReceived: _bytesReceived,
+                    ReconnectCount: _reconnectCount,
+                    TimePlayed: _stopwatch.Elapsed,
+                    LastError: _lastError);
+            }
+        }
 
         /// <summary>
         /// Raised on a background decode thread once per frame, after the frame buffer
@@ -34,6 +58,18 @@ namespace WinFormsReceiver.Context
         private int _width;
         private int _height;
         private int _stride;
+
+        // Stats, for VideoStats above — updated alongside playback but never consulted
+        // by it, so none of this changes playback behavior.
+        private bool _isConnected;
+        private string _codecName = "";
+        private string _pixelFormat = "";
+        private long _framesDecoded;
+        private long _keyFramesDecoded;
+        private long _packetsReceived;
+        private long _bytesReceived;
+        private int _reconnectCount;
+        private string? _lastError;
 
         public void Play(Uri uri)
         {
@@ -65,9 +101,14 @@ namespace WinFormsReceiver.Context
                     var stream = formatContext.FindBestStreamOrNull(AVMediaType.Video)
                         ?? throw new InvalidOperationException("No video stream found in RTSP source.");
 
-                    using var codecContext = new CodecContext(Codec.FindDecoderById(stream.Codecpar!.CodecId));
+                    var codec = Codec.FindDecoderById(stream.Codecpar!.CodecId);
+                    using var codecContext = new CodecContext(codec);
                     codecContext.FillParameters(stream.Codecpar);
                     codecContext.Open();
+
+                    _codecName = codec.Name ?? stream.Codecpar.CodecId.ToString();
+                    _isConnected = true;
+                    _lastError = null;
 
                     using var converter = new VideoFrameConverter();
                     using var decodedFrame = new Frame();
@@ -77,6 +118,8 @@ namespace WinFormsReceiver.Context
                     {
                         if (token.IsCancellationRequested)
                             break;
+
+                        _packetsReceived++;
 
                         foreach (var frame in codecContext.DecodePacket(packet, decodedFrame))
                         {
@@ -93,6 +136,9 @@ namespace WinFormsReceiver.Context
                 {
                     // Stream dropped/errored (e.g. sender restarted) — back off and reconnect.
                     Debug.WriteLine($"[Video] decode loop error, reconnecting: {ex}");
+                    _isConnected = false;
+                    _reconnectCount++;
+                    _lastError = ex.Message;
                     Thread.Sleep(1000);
                 }
             }
@@ -100,6 +146,16 @@ namespace WinFormsReceiver.Context
 
         private void EmitFrame(VideoFrameConverter converter, Frame decoded, Frame bgraFrame)
         {
+            _framesDecoded++;
+            if ((decoded.Flags & ffmpeg.AV_FRAME_FLAG_KEY) != 0)
+                _keyFramesDecoded++;
+
+            // PktSize is obsolete upstream (superseded by AV_CODEC_FLAG_COPY_OPAQUE) but
+            // still functional in 7.0 and the simplest way to measure received bitrate.
+            if (decoded.PktSize > 0)
+                _bytesReceived += decoded.PktSize;
+            _pixelFormat = ((AVPixelFormat)decoded.Format).ToString();
+
             bgraFrame.Unref();
             bgraFrame.Width = decoded.Width;
             bgraFrame.Height = decoded.Height;
@@ -165,6 +221,16 @@ namespace WinFormsReceiver.Context
             _width = 0;
             _height = 0;
             FreeBuffer();
+
+            _isConnected = false;
+            _codecName = "";
+            _pixelFormat = "";
+            _framesDecoded = 0;
+            _keyFramesDecoded = 0;
+            _packetsReceived = 0;
+            _bytesReceived = 0;
+            _reconnectCount = 0;
+            _lastError = null;
         }
 
         public void Dispose()
