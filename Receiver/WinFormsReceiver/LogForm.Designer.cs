@@ -52,6 +52,7 @@
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Name = "LogForm";
             Text = "Log";
+            FormClosing += LogForm_FormClosing;
             ResumeLayout(false);
         }
 

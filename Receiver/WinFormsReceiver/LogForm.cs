@@ -26,5 +26,11 @@
 
             Invoke(() => Helpers.Log(richTextLog, message, logLevel));
         }
+
+        private void LogForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            e.Cancel = true;
+            Hide();
+        }
     }
 }

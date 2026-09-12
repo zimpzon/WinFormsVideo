@@ -21,6 +21,8 @@ namespace WinFormsReceiver
             VideoPanel.VideoSizeChanged += VideoPanel_VideoSizeChanged;
             VideoPanel.SizeChanged += VideoPanel_SizeChanged;
             UpdateSizesPanel();
+
+            _logForm.LogMessage($"App started");
         }
 
         private void btnPlayVideo_Click(object sender, EventArgs e)
@@ -44,7 +46,7 @@ namespace WinFormsReceiver
             labSizes.Text = $"Shown size: {VideoPanel.ClientSize.Width} x {VideoPanel.ClientSize.Height} ({Helpers.GetAspectRatio(VideoPanel.ClientSize.Width, VideoPanel.ClientSize.Height)})";
         }
 
-        private void VideoPanel_SizeChanged(object sender, EventArgs e)
+        private void VideoPanel_SizeChanged(object? sender, EventArgs e)
         {
             UpdateSizesPanel();
         }
