@@ -9,6 +9,9 @@ namespace WinFormsReceiver.CustomControls
         private Bitmap? _latestFrame;
         private readonly object _frameLock = new();
         private readonly StringBuilder _sb = new();
+        private Size? _lastFrameSize;
+
+        public event Action<Size>? VideoSizeChanged;
 
         public VideoPanelControl()
         {
@@ -43,6 +46,14 @@ namespace WinFormsReceiver.CustomControls
             {
                 _latestFrame?.Dispose();
                 _latestFrame = copy;
+            }
+
+            var frameSize = new Size(frame.Width, frame.Height);
+            if (_lastFrameSize != frameSize)
+            {
+                _lastFrameSize = frameSize;
+                if (IsHandleCreated)
+                    BeginInvoke((Action)(() => VideoSizeChanged?.Invoke(frameSize)));
             }
 
             // Marshal to UI thread to repaint
