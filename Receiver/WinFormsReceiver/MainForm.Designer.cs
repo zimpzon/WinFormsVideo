@@ -32,7 +32,6 @@
             btnPlayVideo = new Button();
             btnShowLog = new Button();
             tbVideoUri = new TextBox();
-            labSizes = new Label();
             VideoPanel = new WinFormsReceiver.CustomControls.VideoPanelControl();
             SuspendLayout();
             // 
@@ -53,9 +52,9 @@
             // 
             btnPlayVideo.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnPlayVideo.Font = new Font("Segoe UI Symbol", 20F);
-            btnPlayVideo.Location = new Point(17, 790);
+            btnPlayVideo.Location = new Point(12, 754);
             btnPlayVideo.Name = "btnPlayVideo";
-            btnPlayVideo.Size = new Size(64, 28);
+            btnPlayVideo.Size = new Size(64, 64);
             btnPlayVideo.TabIndex = 1;
             btnPlayVideo.Text = "⏵";
             btnPlayVideo.UseCompatibleTextRendering = true;
@@ -76,20 +75,11 @@
             // tbVideoUri
             // 
             tbVideoUri.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            tbVideoUri.Location = new Point(87, 790);
+            tbVideoUri.Location = new Point(87, 788);
             tbVideoUri.Name = "tbVideoUri";
             tbVideoUri.Size = new Size(310, 29);
             tbVideoUri.TabIndex = 7;
             tbVideoUri.Text = "rtsp://127.0.0.1:8554/live";
-            // 
-            // labSizes
-            // 
-            labSizes.AutoSize = true;
-            labSizes.Location = new Point(431, 789);
-            labSizes.Name = "labSizes";
-            labSizes.Size = new Size(180, 22);
-            labSizes.TabIndex = 11;
-            labSizes.Text = "Shown size: 0 x 0";
             // 
             // VideoPanel
             // 
@@ -106,7 +96,6 @@
             BackColor = Color.DarkGray;
             ClientSize = new Size(1284, 830);
             Controls.Add(VideoPanel);
-            Controls.Add(labSizes);
             Controls.Add(tbVideoUri);
             Controls.Add(btnShowLog);
             Controls.Add(btnPlayVideo);
@@ -127,7 +116,6 @@
         private Button btnShowLog;
         private Label labelStatus;
         private TextBox tbVideoUri;
-        private Label labSizes;
         private CustomControls.VideoPanelControl VideoPanel;
     }
 }

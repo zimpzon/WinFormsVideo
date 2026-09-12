@@ -19,14 +19,13 @@ namespace WinFormsReceiver
             _context = WinFormsContext.Instance;
             VideoPanel.Initialize();
             VideoPanel.VideoSizeChanged += VideoPanel_VideoSizeChanged;
-            VideoPanel.SizeChanged += VideoPanel_SizeChanged;
-            UpdateSizesPanel();
 
             _logForm.LogMessage($"App started");
         }
 
         private void btnPlayVideo_Click(object sender, EventArgs e)
         {
+            btnPlayVideo.Enabled = false;
             _logForm.LogMessage($"Starting video from {tbVideoUri.Text}");
             _context.Video.Play(new Uri(tbVideoUri.Text));
         }
@@ -41,21 +40,10 @@ namespace WinFormsReceiver
             _context.Video.Stop();
         }
 
-        void UpdateSizesPanel()
-        {
-            labSizes.Text = $"Shown size: {VideoPanel.ClientSize.Width} x {VideoPanel.ClientSize.Height} ({Helpers.GetAspectRatio(VideoPanel.ClientSize.Width, VideoPanel.ClientSize.Height)})";
-        }
-
-        private void VideoPanel_SizeChanged(object? sender, EventArgs e)
-        {
-            UpdateSizesPanel();
-        }
-
         private void VideoPanel_VideoSizeChanged(Size newSize)
         {
             VideoPanel.Size = newSize;
             ClientSize = new Size(VideoPanel.Right + _videoRightMargin, VideoPanel.Bottom + _videoBottomMargin);
         }
-
     }
 }
