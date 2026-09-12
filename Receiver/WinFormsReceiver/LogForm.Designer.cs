@@ -37,6 +37,7 @@
             richTextLog.Dock = DockStyle.Fill;
             richTextLog.Location = new Point(0, 0);
             richTextLog.Name = "richTextLog";
+            richTextLog.ReadOnly = true;
             richTextLog.Size = new Size(1084, 469);
             richTextLog.TabIndex = 0;
             richTextLog.Text = "";

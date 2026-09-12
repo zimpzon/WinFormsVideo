@@ -2,6 +2,24 @@
 {
     public static class Helpers
     {
+        public static string GetAspectRatio(int width, int height)
+        {
+            int gcd = GCD(width, height);
+            return $"{width / gcd}:{height / gcd}";
+        }
+
+        // Euclidean algorithm for Greatest Common Divisor
+        private static int GCD(int a, int b)
+        {
+            while (b != 0)
+            {
+                int temp = b;
+                b = a % b;
+                a = temp;
+            }
+            return a;
+        }
+
         public enum LogLevel
         {
             Information,

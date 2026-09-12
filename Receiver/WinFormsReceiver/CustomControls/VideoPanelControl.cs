@@ -28,8 +28,8 @@ namespace WinFormsReceiver.CustomControls
         {
             _sb.Clear();
 
-            _sb.AppendLine($"{_context.Video.Stats.Width} x {_context.Video.Stats.Height} @ {_context.Video.Stats.Fps:0.0} fps");
-            _sb.AppendLine($"{_context.Video.Stats.TimePlayed}:0.0");
+            _sb.AppendLine($"{_context.Video.Stats.Width} x {_context.Video.Stats.Height} ({Helpers.GetAspectRatio(_context.Video.Stats.Width, _context.Video.Stats.Height)}) @ {_context.Video.Stats.Fps:0.0} fps");
+            _sb.AppendLine($"{_context.Video.Stats.TimePlayed.ToString(@"hh\:mm\:ss\.f")}");
 
             using (var g = Graphics.FromImage(frame))
             {

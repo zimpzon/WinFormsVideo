@@ -13,6 +13,7 @@ namespace WinFormsReceiver
 
             _context = WinFormsContext.Instance;
             VideoPanel.Initialize();
+            UpdateSizesPanel();
         }
 
         private void btnPlayVideo_Click(object sender, EventArgs e)
@@ -30,5 +31,16 @@ namespace WinFormsReceiver
         {
             _context.Video.Stop();
         }
+
+        void UpdateSizesPanel()
+        {
+            labSizes.Text = $"Shown size: {VideoPanel.ClientSize.Width} x {VideoPanel.ClientSize.Height}";
+        }
+
+        private void VideoPanel_SizeChanged(object sender, EventArgs e)
+        {
+            UpdateSizesPanel();
+        }
+
     }
 }

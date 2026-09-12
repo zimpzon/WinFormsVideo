@@ -30,11 +30,9 @@
         {
             labelStatus = new Label();
             btnPlayVideo = new Button();
-            labelVideoSize = new Label();
             btnShowLog = new Button();
             tbVideoUri = new TextBox();
-            labPlayTime = new Label();
-            labelWithTransparentBackground1 = new WinFormsReceiver.CustomControls.LabelWithTransparentBackground();
+            labSizes = new Label();
             VideoPanel = new WinFormsReceiver.CustomControls.VideoPanelControl();
             SuspendLayout();
             // 
@@ -55,7 +53,7 @@
             // 
             btnPlayVideo.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnPlayVideo.Font = new Font("Segoe UI Symbol", 20F);
-            btnPlayVideo.Location = new Point(17, 442);
+            btnPlayVideo.Location = new Point(17, 744);
             btnPlayVideo.Name = "btnPlayVideo";
             btnPlayVideo.Size = new Size(64, 28);
             btnPlayVideo.TabIndex = 1;
@@ -64,21 +62,10 @@
             btnPlayVideo.UseVisualStyleBackColor = true;
             btnPlayVideo.Click += btnPlayVideo_Click;
             // 
-            // labelVideoSize
-            // 
-            labelVideoSize.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            labelVideoSize.AutoSize = true;
-            labelVideoSize.Location = new Point(715, 442);
-            labelVideoSize.Name = "labelVideoSize";
-            labelVideoSize.Size = new Size(210, 22);
-            labelVideoSize.TabIndex = 4;
-            labelVideoSize.Text = "0 x 0 (native 0 x 0)";
-            labelVideoSize.TextAlign = ContentAlignment.MiddleLeft;
-            // 
             // btnShowLog
             // 
             btnShowLog.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnShowLog.Location = new Point(1068, 442);
+            btnShowLog.Location = new Point(1188, 742);
             btnShowLog.Name = "btnShowLog";
             btnShowLog.Size = new Size(112, 30);
             btnShowLog.TabIndex = 5;
@@ -89,56 +76,47 @@
             // tbVideoUri
             // 
             tbVideoUri.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            tbVideoUri.Location = new Point(99, 442);
+            tbVideoUri.Location = new Point(87, 744);
             tbVideoUri.Name = "tbVideoUri";
             tbVideoUri.Size = new Size(310, 29);
             tbVideoUri.TabIndex = 7;
             tbVideoUri.Text = "rtsp://127.0.0.1:8554/live";
             // 
-            // labPlayTime
+            // labSizes
             // 
-            labPlayTime.AutoSize = true;
-            labPlayTime.BackColor = Color.Transparent;
-            labPlayTime.Location = new Point(374, 442);
-            labPlayTime.Name = "labPlayTime";
-            labPlayTime.Size = new Size(70, 22);
-            labPlayTime.TabIndex = 8;
-            labPlayTime.Text = "label1";
-            // 
-            // labelWithTransparentBackground1
-            // 
-            labelWithTransparentBackground1.Location = new Point(215, 430);
-            labelWithTransparentBackground1.Name = "labelWithTransparentBackground1";
-            labelWithTransparentBackground1.Size = new Size(112, 34);
-            labelWithTransparentBackground1.TabIndex = 9;
-            labelWithTransparentBackground1.Text = "labelWithTransparentBackground1";
+            labSizes.AutoSize = true;
+            labSizes.Location = new Point(432, 641);
+            labSizes.Name = "labSizes";
+            labSizes.Size = new Size(180, 22);
+            labSizes.TabIndex = 11;
+            labSizes.Text = "Shown size: 0 x 0";
             // 
             // VideoPanel
             // 
-            VideoPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            VideoPanel.BorderStyle = BorderStyle.FixedSingle;
+            VideoPanel.Anchor = AnchorStyles.None;
+            VideoPanel.BackColor = Color.Gray;
             VideoPanel.Location = new Point(17, 12);
             VideoPanel.Name = "VideoPanel";
-            VideoPanel.Size = new Size(501, 285);
-            VideoPanel.TabIndex = 10;
+            VideoPanel.Size = new Size(1280, 720);
+            VideoPanel.TabIndex = 12;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(10F, 22F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.DarkGray;
-            ClientSize = new Size(1192, 484);
+            ClientSize = new Size(1312, 784);
             Controls.Add(VideoPanel);
-            Controls.Add(labelWithTransparentBackground1);
-            Controls.Add(labPlayTime);
+            Controls.Add(labSizes);
             Controls.Add(tbVideoUri);
             Controls.Add(btnShowLog);
-            Controls.Add(labelVideoSize);
             Controls.Add(btnPlayVideo);
             Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            FormBorderStyle = FormBorderStyle.Fixed3D;
+            MaximizeBox = false;
             MinimumSize = new Size(1000, 359);
             Name = "MainForm";
-            Text = "Form1";
+            Text = "WinFormsVideo";
             FormClosing += MainForm_FormClosing;
             ResumeLayout(false);
             PerformLayout();
@@ -147,12 +125,10 @@
         #endregion
 
         private Button btnPlayVideo;
-        private Label labelVideoSize;
         private Button btnShowLog;
         private Label labelStatus;
         private TextBox tbVideoUri;
-        private Label labPlayTime;
-        private CustomControls.LabelWithTransparentBackground labelWithTransparentBackground1;
+        private Label labSizes;
         private CustomControls.VideoPanelControl VideoPanel;
     }
 }
