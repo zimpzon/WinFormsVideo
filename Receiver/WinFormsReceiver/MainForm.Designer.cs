@@ -32,12 +32,10 @@
             btnPlayVideo = new Button();
             labelVideoSize = new Label();
             btnShowLog = new Button();
-            videoView1 = new LibVLCSharp.WinForms.VideoView();
             tbVideoUri = new TextBox();
             labPlayTime = new Label();
             labelWithTransparentBackground1 = new WinFormsReceiver.CustomControls.LabelWithTransparentBackground();
-            gradientTextControl1 = new GradientTextControl();
-            ((System.ComponentModel.ISupportInitialize)videoView1).BeginInit();
+            VideoPanel = new WinFormsReceiver.CustomControls.VideoPanelControl();
             SuspendLayout();
             // 
             // labelStatus
@@ -88,19 +86,6 @@
             btnShowLog.UseVisualStyleBackColor = true;
             btnShowLog.Click += btnShowLog_Click;
             // 
-            // videoView1
-            // 
-            videoView1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            videoView1.BackColor = Color.Black;
-            videoView1.Location = new Point(17, 11);
-            videoView1.MediaPlayer = null;
-            videoView1.Name = "videoView1";
-            videoView1.Size = new Size(842, 363);
-            videoView1.TabIndex = 6;
-            videoView1.Text = "videoView1";
-            videoView1.Move += videoView1_Move;
-            videoView1.Resize += videoView1_Resize;
-            // 
             // tbVideoUri
             // 
             tbVideoUri.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
@@ -128,13 +113,14 @@
             labelWithTransparentBackground1.TabIndex = 9;
             labelWithTransparentBackground1.Text = "labelWithTransparentBackground1";
             // 
-            // gradientTextControl1
+            // VideoPanel
             // 
-            gradientTextControl1.BoxAlpha = 25;
-            gradientTextControl1.Location = new Point(879, 61);
-            gradientTextControl1.Name = "gradientTextControl1";
-            gradientTextControl1.Size = new Size(600, 375);
-            gradientTextControl1.TabIndex = 11;
+            VideoPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            VideoPanel.BorderStyle = BorderStyle.FixedSingle;
+            VideoPanel.Location = new Point(17, 12);
+            VideoPanel.Name = "VideoPanel";
+            VideoPanel.Size = new Size(501, 285);
+            VideoPanel.TabIndex = 10;
             // 
             // MainForm
             // 
@@ -142,11 +128,10 @@
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.DarkGray;
             ClientSize = new Size(1192, 484);
-            Controls.Add(gradientTextControl1);
+            Controls.Add(VideoPanel);
             Controls.Add(labelWithTransparentBackground1);
             Controls.Add(labPlayTime);
             Controls.Add(tbVideoUri);
-            Controls.Add(videoView1);
             Controls.Add(btnShowLog);
             Controls.Add(labelVideoSize);
             Controls.Add(btnPlayVideo);
@@ -155,8 +140,6 @@
             Name = "MainForm";
             Text = "Form1";
             FormClosing += MainForm_FormClosing;
-            Move += MainForm_Move;
-            ((System.ComponentModel.ISupportInitialize)videoView1).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -167,10 +150,9 @@
         private Label labelVideoSize;
         private Button btnShowLog;
         private Label labelStatus;
-        private LibVLCSharp.WinForms.VideoView videoView1;
         private TextBox tbVideoUri;
         private Label labPlayTime;
         private CustomControls.LabelWithTransparentBackground labelWithTransparentBackground1;
-        private GradientTextControl gradientTextControl1;
+        private CustomControls.VideoPanelControl VideoPanel;
     }
 }

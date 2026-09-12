@@ -7,6 +7,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,12 +17,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LibVLCSharp.WinForms" Version="3.10.1" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
+    <ProjectReference Include="..\..\WinFormsContext\WinFormsContext.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\WinFormsContext\WinFormsContext.csproj" />
+    <Compile Update="CustomControls\VideoPanelControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
   </ItemGroup>
 
 </Project>

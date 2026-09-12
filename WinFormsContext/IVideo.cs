@@ -1,10 +1,11 @@
-﻿using LibVLCSharp.Shared;
+using System.Drawing;
 
 namespace WinFormsReceiver.Context
 {
     public interface IVideo
     {
-        MediaPlayer MediaPlayer { get; }
+        TimeSpan TimePlayed { get; }
+        Action<Bitmap>? FrameReady { get; set; }
         void Play(Uri uri);
         void Stop();
     }

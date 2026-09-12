@@ -1,31 +1,25 @@
-# CURRENT
+# Current progress
 
-## Task: pivot to ffmpeg / H.264 over RTSP
-
-CLAUDE.md was rewritten to a much simpler design: sender uses (in-process Sdcb.FFmpeg) to stream
-a local mp4 as H.264 over RTSP; ReceiverCli just verifies the stream reads; WinFormsReceiver shows
-live video. The old custom UDP/TCP pipeline is being removed.
-
-### Done — dead-code removal pass
-- Deleted projects: `Protocol`, `Sender/SenderCli`, `Sender/WinFormsSender`, `Sender/SenderLib.Tests`,
-  `Receiver/ReceiverLib.Tests`, `Receiver/ReceiverLib.WinForms`, `Receiver/ReceiverLib.WinForms.Tests`.
-- `WinFormsVideo.slnx` trimmed to 4 projects: SenderLib, ReceiverLib, ReceiverCli, WinFormsReceiver.
-- SenderLib: removed the custom transport + old `VideoSender` facade + pacing. Kept the reusable
-  FFmpeg demux core: `FFmpegVideoSource` / `IVideoSource` / `VideoInfo` / `EncodedFrame` + config/enum DTOs.
-- ReceiverLib: removed `VideoReceiver` / `ReceivePipeline` / `UdpVideoClient` / clocks. Kept the
-  reusable decode + zero-copy display core: `FFmpegVideoDecoder` / `IVideoDecoder` / `FrameBufferPool`
-  / `FrameTarget` / `RentedFrame` / `VideoFrame` / `ReceivedPacket` + DTOs. `IVideoDecoder.Configure`
-  now takes `(codecId, width, height, extradata)` instead of the old `StreamInfo`.
-- `ReceiverCli/Program.cs` is a placeholder pending the RTSP verifier.
-- Builds clean: SenderLib, ReceiverLib, ReceiverCli.
-
-### Broken until the RTSP pass (expected)
-- `WinFormsReceiver` does not build — it uses the removed `VideoReceiver` API + `ReceiverLib.WinForms`.
-  Not touched (developer-owned). The RTSP pass must restore an equivalent `VideoReceiver` surface
-  (or the developer adjusts the form).
-
-### Next: implement RTSP
-- Sender: in-process Sdcb.FFmpeg — read mp4 (`FFmpegVideoSource`), encode/mux H.264, publish RTSP
-  (server, streams with zero clients, resumable).
-- ReceiverLib: RTSP client feeding `FFmpegVideoDecoder` → `FrameBufferPool`; restore `VideoReceiver`.
-- ReceiverCli: open the RTSP URL, confirm packets read, print codec/res/fps.
+- LibVLCSharp fully removed (NuGet refs, `using`s, MediaPlayer property). No trace left.
+- WinFormsContext.Video decodes **in-process** via the `Sdcb.FFmpeg` NuGet package
+  (7.0.0 + `Sdcb.FFmpeg.runtime.windows-x64` 7.0.0, pinned together) — no external
+  `ffmpeg.exe` process for the receiver.
+  - `FormatContext.OpenInputUrl` opens the RTSP URL, finds the video stream, opens a
+    `CodecContext` decoder for it.
+  - Decode loop: `ReadPackets` → `DecodePacket` (yields native yuv420p `Frame`s) →
+    `VideoFrameConverter.ConvertFrame` to Bgra → row-copied into a reused pinned
+    buffer → wrapped as a `Bitmap` (`Format32bppRgb`) → `IVideo.FrameReady`.
+- `WinFormsReceiver.csproj` now sets `<RuntimeIdentifier>win-x64</RuntimeIdentifier>`
+  (`SelfContained=false`) — required for NuGet to copy the native `runtimes/win-x64/native/*.dll`
+  ffmpeg binaries into the output folder; confirmed present after build.
+- `VideoPanelControl.cs` (unchanged) still draws the overlay (timestamp) directly onto
+  the frame bitmap before displaying it.
+- Solution builds clean (`dotnet build WinFormsVideo.slnx`).
+- **Verified end-to-end**: launched the real app against the running sender
+  (`rtsp://127.0.0.1:8554/live`), clicked Play, confirmed via window capture that
+  `VideoPanelControl` renders live decoded frames (checked two captures differ, i.e.
+  not a frozen frame). Found and fixed one real bug along the way: `bgraFrame` had no
+  allocated pixel buffer before `VideoFrameConverter.ConvertFrame` wrote into it
+  (`sws_scale`: "bad dst image pointers") — fixed with `Unref()` + `EnsureBuffer()`
+  before each conversion. No WinForms-project changes were needed this pass; the
+  existing `VideoPanelControl`/`MainForm` wiring from the previous pass was already correct.
