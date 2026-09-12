@@ -18,7 +18,7 @@ namespace WinFormsReceiver
 
         private void btnPlayVideo_Click(object sender, EventArgs e)
         {
-            _logForm.LogMessage("Starting video");
+            _logForm.LogMessage($"Starting video from {tbVideoUri.Text}");
             _context.Video.Play(new Uri(tbVideoUri.Text));
         }
 
@@ -34,7 +34,7 @@ namespace WinFormsReceiver
 
         void UpdateSizesPanel()
         {
-            labSizes.Text = $"Shown size: {VideoPanel.ClientSize.Width} x {VideoPanel.ClientSize.Height}";
+            labSizes.Text = $"Shown size: {VideoPanel.ClientSize.Width} x {VideoPanel.ClientSize.Height} ({Helpers.GetAspectRatio(VideoPanel.ClientSize.Width, VideoPanel.ClientSize.Height)})";
         }
 
         private void VideoPanel_SizeChanged(object sender, EventArgs e)

@@ -26,17 +26,6 @@ namespace WinFormsReceiver.CustomControls
 
         private void OnFrameReady(Bitmap frame)
         {
-            _sb.Clear();
-
-            _sb.AppendLine($"{_context.Video.Stats.Width} x {_context.Video.Stats.Height} ({Helpers.GetAspectRatio(_context.Video.Stats.Width, _context.Video.Stats.Height)}) @ {_context.Video.Stats.Fps:0.0} fps");
-            _sb.AppendLine($"{_context.Video.Stats.TimePlayed.ToString(@"hh\:mm\:ss\.f")}");
-
-            using (var g = Graphics.FromImage(frame))
-            {
-                g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), new Rectangle(5, 5, 300, 80));
-                g.DrawString(_sb.ToString(), Font, Brushes.White, 10, 10);
-            }
-
             // 'frame' wraps the Video class's own pinned buffer, which gets overwritten by
             // the next callback — copy it out. NOTE: frame.Clone() looked like the obvious
             // way to do this but silently does NOT deep-copy pixel data for a Bitmap backed
@@ -66,7 +55,18 @@ namespace WinFormsReceiver.CustomControls
             lock (_frameLock)
             {
                 if (_latestFrame != null)
-                    e.Graphics.DrawImage(_latestFrame, ClientRectangle);
+                {
+                    var g = e.Graphics;
+                    g.DrawImage(_latestFrame, ClientRectangle);
+                    _sb.Clear();
+
+                    _sb.AppendLine($"{_context.Video.Stats.Width} x {_context.Video.Stats.Height} ({Helpers.GetAspectRatio(_context.Video.Stats.Width, _context.Video.Stats.Height)}) @ {_context.Video.Stats.Fps:0.0} fps");
+                    _sb.AppendLine($"{_context.Video.Stats.TimePlayed.ToString(@"hh\:mm\:ss\.f")}");
+                    _sb.AppendLine($"Frames: {_context.Video.Stats.FramesDecoded}");
+
+                    g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), new Rectangle(10, 10, 320, 80));
+                    g.DrawString(_sb.ToString(), Font, Brushes.White, 20, 20);
+                }
             }
         }
     }

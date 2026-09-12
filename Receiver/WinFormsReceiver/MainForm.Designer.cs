@@ -53,7 +53,7 @@
             // 
             btnPlayVideo.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnPlayVideo.Font = new Font("Segoe UI Symbol", 20F);
-            btnPlayVideo.Location = new Point(17, 744);
+            btnPlayVideo.Location = new Point(17, 790);
             btnPlayVideo.Name = "btnPlayVideo";
             btnPlayVideo.Size = new Size(64, 28);
             btnPlayVideo.TabIndex = 1;
@@ -65,7 +65,7 @@
             // btnShowLog
             // 
             btnShowLog.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnShowLog.Location = new Point(1188, 742);
+            btnShowLog.Location = new Point(1160, 788);
             btnShowLog.Name = "btnShowLog";
             btnShowLog.Size = new Size(112, 30);
             btnShowLog.TabIndex = 5;
@@ -76,7 +76,7 @@
             // tbVideoUri
             // 
             tbVideoUri.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            tbVideoUri.Location = new Point(87, 744);
+            tbVideoUri.Location = new Point(87, 790);
             tbVideoUri.Name = "tbVideoUri";
             tbVideoUri.Size = new Size(310, 29);
             tbVideoUri.TabIndex = 7;
@@ -85,7 +85,7 @@
             // labSizes
             // 
             labSizes.AutoSize = true;
-            labSizes.Location = new Point(432, 641);
+            labSizes.Location = new Point(431, 789);
             labSizes.Name = "labSizes";
             labSizes.Size = new Size(180, 22);
             labSizes.TabIndex = 11;
@@ -93,9 +93,8 @@
             // 
             // VideoPanel
             // 
-            VideoPanel.Anchor = AnchorStyles.None;
             VideoPanel.BackColor = Color.Gray;
-            VideoPanel.Location = new Point(17, 12);
+            VideoPanel.Location = new Point(2, 1);
             VideoPanel.Name = "VideoPanel";
             VideoPanel.Size = new Size(1280, 720);
             VideoPanel.TabIndex = 12;
@@ -105,7 +104,7 @@
             AutoScaleDimensions = new SizeF(10F, 22F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.DarkGray;
-            ClientSize = new Size(1312, 784);
+            ClientSize = new Size(1284, 830);
             Controls.Add(VideoPanel);
             Controls.Add(labSizes);
             Controls.Add(tbVideoUri);
