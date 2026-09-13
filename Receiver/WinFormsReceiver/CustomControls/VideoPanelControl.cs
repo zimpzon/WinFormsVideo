@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using WinFormsReceiver.Context;
 
@@ -5,7 +6,7 @@ namespace WinFormsReceiver.CustomControls
 {
     public class VideoPanelControl : Panel
     {
-        private IWinFormsContext _context = null!;
+        private IVideo _video = null!;
         private Bitmap? _latestFrame;
         private readonly object _frameLock = new();
         private readonly StringBuilder _sb = new();
@@ -19,12 +20,9 @@ namespace WinFormsReceiver.CustomControls
                 ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.UserPaint |
                 ControlStyles.OptimizedDoubleBuffer, true);
-        }
 
-        public void Initialize()
-        {
-            _context = WinFormsContext.Instance;
-            _context.Video.FrameReady = OnFrameReady;
+            _video = WinFormsContext.Instance.ServiceProvider.GetRequiredService<IVideo>();
+            _video.FrameReady = OnFrameReady;
         }
 
         private void OnFrameReady(Bitmap frame)
@@ -71,9 +69,9 @@ namespace WinFormsReceiver.CustomControls
                     g.DrawImage(_latestFrame, ClientRectangle);
                     _sb.Clear();
 
-                    _sb.AppendLine($"{_context.Video.Stats.Width} x {_context.Video.Stats.Height} ({Helpers.GetAspectRatio(_context.Video.Stats.Width, _context.Video.Stats.Height)}) @ {_context.Video.Stats.Fps:0.0} fps");
-                    _sb.AppendLine($"{_context.Video.Stats.TimePlayed.ToString(@"hh\:mm\:ss\.f")}");
-                    _sb.AppendLine($"Frames: {_context.Video.Stats.FramesDecoded}");
+                    _sb.AppendLine($"{_video.Stats.Width} x {_video.Stats.Height} ({Helpers.GetAspectRatio(_video.Stats.Width, _video.Stats.Height)}) @ {_video.Stats.Fps:0.0} fps");
+                    _sb.AppendLine($"{_video.Stats.TimePlayed.ToString(@"hh\:mm\:ss\.f")}");
+                    _sb.AppendLine($"Frames: {_video.Stats.FramesDecoded}");
 
                     g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), new Rectangle(10, 10, 320, 80));
                     g.DrawString(_sb.ToString(), Font, Brushes.White, 20, 20);

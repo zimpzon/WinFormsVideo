@@ -2,6 +2,6 @@
 {
     public interface IWinFormsContext
     {
-        IVideo Video { get; }
+        IServiceProvider ServiceProvider { get; }
     }
 }

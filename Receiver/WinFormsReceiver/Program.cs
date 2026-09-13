@@ -4,8 +4,6 @@ namespace WinFormsReceiver
 {
     internal static class Program
     {
-        public static readonly ApplicationContext Context = new();
-
         [STAThread]
         static void Main()
         {

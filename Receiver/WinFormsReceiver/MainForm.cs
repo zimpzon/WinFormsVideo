@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using WinFormsReceiver.Context;
 
 namespace WinFormsReceiver
@@ -5,7 +6,7 @@ namespace WinFormsReceiver
     public partial class MainForm : Form
     {
         private LogForm _logForm = new LogForm();
-        private readonly IWinFormsContext _context;
+        private readonly IVideo _video;
         private readonly int _videoRightMargin;
         private readonly int _videoBottomMargin;
 
@@ -16,8 +17,7 @@ namespace WinFormsReceiver
             _videoRightMargin = ClientSize.Width - VideoPanel.Right;
             _videoBottomMargin = ClientSize.Height - VideoPanel.Bottom;
 
-            _context = WinFormsContext.Instance;
-            VideoPanel.Initialize();
+            _video = WinFormsContext.Instance.ServiceProvider.GetRequiredService<IVideo>();
             VideoPanel.VideoSizeChanged += VideoPanel_VideoSizeChanged;
 
             _logForm.LogMessage($"App started");
@@ -27,7 +27,7 @@ namespace WinFormsReceiver
         {
             btnPlayVideo.Enabled = false;
             _logForm.LogMessage($"Starting video from {tbVideoUri.Text}");
-            _context.Video.Play(new Uri(tbVideoUri.Text));
+            _video.Play(new Uri(tbVideoUri.Text));
         }
 
         private void btnShowLog_Click(object sender, EventArgs _)
@@ -37,7 +37,7 @@ namespace WinFormsReceiver
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs _)
         {
-            _context.Video.Stop();
+            _video.Stop();
         }
 
         private void VideoPanel_VideoSizeChanged(Size newSize)
