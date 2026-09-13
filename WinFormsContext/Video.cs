@@ -11,7 +11,7 @@ using System.Runtime.InteropServices;
 
 namespace WinFormsReceiver.Context
 {
-    internal sealed class Video : IVideo, IDisposable
+    public sealed class Video : IVideo, IDisposable
     {
         /// <summary>
         /// A snapshot of live playback stats — cheap to read from any thread at any time.
