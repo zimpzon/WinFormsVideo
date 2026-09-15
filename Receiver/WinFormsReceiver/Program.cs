@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using WinFormsReceiver.Context;
 
 namespace WinFormsReceiver
@@ -8,14 +9,19 @@ namespace WinFormsReceiver
         [STAThread]
         static void Main()
         {
-            // Totally unnecessary to use dependency injection, but just a test of separating BL from UI.
-            var services = new ServiceCollection();
-            services.AddSingleton<IVideo, Video>();
-
-            WinFormsContext.Initialize(services);
-
             ApplicationConfiguration.Initialize();
-            Application.Run(new MainForm());
+
+            // Totally unnecessary to use dependency injection, but just a test of separating BL from UI.
+            var builder = Host.CreateDefaultBuilder();
+            using var serviceHost = builder.ConfigureServices((context, services) =>
+            {
+                services.AddSingleton<IVideo, Video>();
+                services.AddTransient<MainForm>();
+                services.AddTransient<LogForm>();
+            }).Build();
+
+            var mainForm = serviceHost.Services.GetRequiredService<MainForm>();
+            Application.Run(mainForm);
         }
     }
 }

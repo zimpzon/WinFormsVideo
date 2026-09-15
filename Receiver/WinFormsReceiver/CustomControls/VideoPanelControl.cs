@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using WinFormsReceiver.Context;
 
@@ -20,8 +19,12 @@ namespace WinFormsReceiver.CustomControls
                 ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.UserPaint |
                 ControlStyles.OptimizedDoubleBuffer, true);
+        }
 
-            _video = WinFormsContext.Instance.ServiceProvider.GetRequiredService<IVideo>();
+        public void Initialize(IVideo? video)
+        {
+            ArgumentNullException.ThrowIfNull(video, nameof(video));
+            _video = video;
             _video.FrameReady = OnFrameReady;
         }
 

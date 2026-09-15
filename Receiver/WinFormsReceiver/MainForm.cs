@@ -1,25 +1,28 @@
-using Microsoft.Extensions.DependencyInjection;
 using WinFormsReceiver.Context;
 
 namespace WinFormsReceiver
 {
     public partial class MainForm : Form
     {
-        private LogForm _logForm = new LogForm();
+        private LogForm _logForm;
         private readonly IVideo _video;
         private readonly int _videoRightMargin;
         private readonly int _videoBottomMargin;
 
-        public MainForm()
+        public MainForm(IVideo? video, LogForm logForm)
         {
+            ArgumentNullException.ThrowIfNull(video, nameof(video));
+            ArgumentNullException.ThrowIfNull(logForm, nameof(logForm));
             InitializeComponent();
 
+            _video = video;
             _videoRightMargin = ClientSize.Width - VideoPanel.Right;
             _videoBottomMargin = ClientSize.Height - VideoPanel.Bottom;
 
-            _video = WinFormsContext.Instance.ServiceProvider.GetRequiredService<IVideo>();
+            VideoPanel.Initialize(video);
             VideoPanel.VideoSizeChanged += VideoPanel_VideoSizeChanged;
 
+            _logForm = logForm;
             _logForm.LogMessage($"App started");
         }
 
